@@ -1,0 +1,23 @@
+# Secrets et configuration locale
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Données et documents de défi: utiliser les copies locales autorisées uniquement
+/data/raw/
+/data/private/
+/data/source/
+/datasets/
+*.sqlite
+*.db
+
+# Artefacts locaux
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+node_modules/
+.DS_Store
+Thumbs.db
