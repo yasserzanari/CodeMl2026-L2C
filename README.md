@@ -43,3 +43,22 @@ Les tests utilisent uniquement des textes et PDF synthétiques. Le script `scrip
 ## Dépendances
 
 Versions : `l2c_app/requirements.txt` et `install-concorde.ps1`. EasyOCR est Apache-2.0 ; PyMuPDF est AGPL-3.0 ou commercial ; PyTorch utilise sa licence BSD. Vérifier les obligations des dépendances et des poids avant redistribution. Aucun poids tiers n’est publié ici. Le code a été développé avec l’assistance de Codex.
+
+## Assistance d’appariement expérimentale
+
+Dans **Moteur & réglages**, activer « Afficher les candidats expliqués pendant la révision » pour inspecter les correspondances possibles. Cette option est désactivée par défaut et ne modifie aucun statut automatique. Les indices portent sur la famille, le repère, le niveau, le rôle et la position haut/bas. Les valeurs d’armature ne servent pas au classement des candidats. Les niveaux absents, axes heuristiques et candidats multiples sont signalés.
+
+Deux annotations identiques dans des PDF différents ne prouvent pas un doublon de document : les pages peuvent différer ailleurs ou représenter des révisions. L’assistant conserve toutes les sources. Les écarts affichés pour un candidat sont conditionnels à la confirmation de l’identité. Ils ne constituent pas une nouvelle alerte automatique.
+
+### Reproduire les contrôles
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests -q
+.\.venv\Scripts\python.exe scripts/check_local_flow.py --models artifacts/l2c/models --output data/checks/flow-001.json
+```
+
+Le second contrôle crée des PDF fictifs dans un dossier temporaire, passe par les endpoints d’import, lance les deux OCR locaux, valide les coordonnées et exports, enregistre une révision et vérifie la récupération au démarrage. Choisir un nouveau nom de sortie à chaque exécution pour conserver les échecs. Les poids doivent être installés avant ce contrôle.
+
+`scripts/benchmark_pairing.py --run <run.json> --out <nouveau-dossier-local>` audite les annotations conservées sans refaire l’OCR. Ajouter plusieurs `--run` pour plusieurs projets. `--labels <tableur-local.xlsx>` accepte un tableau de référence à quatre colonnes (feuillet, localisation, plan, atelier) ; cette option requiert `openpyxl`. La couverture en candidats n’est pas la précision de l’appariement. L’absence d’annotations d’atelier dans un profil natif doit être signalée avant d’interpréter les résultats.
+
+Les principes du barème, critères mesurables et limites sont détaillés dans `docs/MATCHING-VALIDATION.md`. Une vérité terrain exhaustive, revue par un ingénieur, reste nécessaire pour mesurer les faux appariements et le rappel de conformité. Les annotations examinées pendant le développement ne deviennent pas un jeu indépendant en changeant leur nom.

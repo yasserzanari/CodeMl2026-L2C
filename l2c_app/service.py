@@ -50,6 +50,7 @@ def execute(ident):
             for index in range(doc['pages']):
                 if ident in cancelled:
                     job.update(status='cancelled',message='Analyse arrêtée. Les pages déjà traitées restent en cache.'); save(job);return
+                job.update(stage='reading',current_doc=doc_id,current_page=index+1)
                 job['message']=f"{doc['name']} · page {index+1}/{doc['pages']}";save(job)
                 meta={'doc_id':doc_id,'file':doc['relative'],'page':index+1,'source':doc['role']}
                 allow=job['request']['profile']=='complete' or (job['request']['profile']=='sample' and ocr_used<job['request']['max_ocr_pages'])
@@ -64,13 +65,14 @@ def execute(ident):
                     meta.update(method='error',warning=str(exc)[:300]);job['errors'].append(meta)
                 pages.append(meta);job['current']+=1;job['annotations']=len(records);job['ocr_pages']=ocr_used
                 job['seconds']=round(time.perf_counter()-begin,1);save(job)
-        job['message']='Comparaison et génération du rapport PDF';save(job)
+        job.update(stage='matching',message='Rapprochement des annotations');save(job)
         results=reconcile(records)
         run={'id':ident,'project_id':job['project_id'],'project_name':project['name'],'created_at':job['created_at'],
              'scope':job['request']['profile'],'config':job['config'],'records':records,'results':results,'pages':pages,
              'statistics':statistics(records,results,pages)}
+        job.update(stage='reporting',message='Préparation du rapport PDF');save(job)
         write_json(folder/'run.json',run);export(run,folder)
-        job.update(status='completed',message='Rapport disponible',statistics=run['statistics'],seconds=round(time.perf_counter()-begin,1));save(job)
+        job.update(stage='completed',status='completed',message='Rapport disponible',statistics=run['statistics'],seconds=round(time.perf_counter()-begin,1));save(job)
     except Exception as exc:
         job.update(status='failed',message=str(exc)[:500]);save(job)
 

@@ -55,7 +55,7 @@ def document(identifier):
     with CATALOG_LOCK: return _docs.get(identifier)
 def public_document(doc): return {k:v for k,v in doc.items() if k!='path'}
 
-def render(doc_id,page_number,box=None,scale=1.0):
+def render(doc_id,page_number,box=None,scale=1.0,full=False):
     doc=document(doc_id)
     if not doc: raise KeyError('Document introuvable')
     with PDF_LOCK, fitz.open(doc['path']) as pdf:
@@ -64,7 +64,7 @@ def render(doc_id,page_number,box=None,scale=1.0):
         clip=page.rect
         if box:
             rect=fitz.Rect(box)
-            clip=fitz.Rect(rect.x0-65,rect.y0-55,rect.x1+65,rect.y1+55)&page.rect
+            clip=page.rect if full else fitz.Rect(rect.x0-65,rect.y0-55,rect.x1+65,rect.y1+55)&page.rect
             if clip.is_empty:raise ValueError('Zone hors de la page.')
             # In-memory overlay only. The confidential source PDF is never overwritten.
             annotation=page.add_rect_annot(rect*page.derotation_matrix)

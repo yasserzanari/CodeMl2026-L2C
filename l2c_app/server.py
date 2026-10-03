@@ -69,12 +69,14 @@ def cancel(job_id:str):
     return {'message':'Arrêt demandé à la fin de la page en cours.'}
 
 @app.get('/api/runs/{run_id}/results')
-def results(run_id:str,q:str=Query('',max_length=200),status:str='',family:str='',offset:int=Query(0,ge=0),limit:int=Query(25,ge=1,le=100)):
+def results(run_id:str,q:str=Query('',max_length=200),status:str='',family:str='',sheet:str='',review_state:str='',offset:int=Query(0,ge=0),limit:int=Query(25,ge=1,le=100)):
     run=service.load_run(run_id)
     rows=[r for r in run['results'] if (not status or r['status']==status) and (not family or r['family']==family)
+          and (not sheet or r['sheet']==sheet)
+          and (not review_state or (review_state=='unreviewed' and not r.get('review')) or (r.get('review') or {}).get('decision')==review_state)
           and (not q or q.casefold() in (r['element']+' '+r['sheet']+' '+r['reason']).casefold())]
     return {'id':run_id,'project_name':run['project_name'],'scope':run['scope'],'statistics':run['statistics'],
-            'total':len(rows),'items':rows[offset:offset+limit],'offset':offset,'limit':limit}
+            'sheets':sorted({r['sheet'] for r in run['results']}),'total':len(rows),'items':rows[offset:offset+limit],'offset':offset,'limit':limit}
 
 @app.get('/api/runs/{run_id}/results/{result_id}')
 def detail(run_id:str,result_id:str):
@@ -82,7 +84,57 @@ def detail(run_id:str,result_id:str):
     row=next((r for r in run['results'] if r['id']==result_id),None)
     if not row:raise KeyError('Observation introuvable')
     ids=set(row['plan_ids']+row['atelier_ids'])
-    return row|{'records':[r for r in run['records'] if r['information']['id'] in ids]}
+    records=[r for r in run['records'] if r['information']['id'] in ids]
+    suggestions=[]
+    if settings().get('pairing_assistance',False):
+        from .pairing import candidates,candidate_differences
+        for plan in [r for r in records if r['information']['source']=='plan'][:4]:
+            for c in candidates(plan,run['records']):
+                suggestions.append(c|{'plan_id':plan['information']['id'],
+                    'differences':candidate_differences(plan,c['record'])})
+    index=run['results'].index(row)
+    return row|{'records':records,'pairing_candidates':suggestions,'position':index+1,'total':len(run['results']),
+                'previous':run['results'][index-1]['id'] if index else None,
+                'next':run['results'][index+1]['id'] if index+1<len(run['results']) else None}
+
+@app.get('/api/runs/{run_id}/reports')
+def report_index(run_id:str):
+    from .report_view import index
+    return index(service.load_run(run_id))
+
+@app.get('/api/runs/{run_id}/reports/{sheet_id}/preview')
+def report_preview(run_id:str,sheet_id:str,page:int=Query(1,ge=1)):
+    from .report_view import make_pdf
+    content=make_pdf(service.load_run(run_id),sheet_id)
+    with catalog.PDF_LOCK,fitz.open(stream=content,filetype='pdf') as document:
+        if page>len(document):raise HTTPException(422,'Page de rapport invalide.')
+        pix=document[page-1].get_pixmap(matrix=fitz.Matrix(1.3,1.3),alpha=False)
+        return Response(pix.tobytes('png'),media_type='image/png',headers={'X-Report-Pages':str(len(document))})
+
+@app.get('/api/runs/{run_id}/reports/{sheet_id}/pdf')
+def report_pdf(run_id:str,sheet_id:str):
+    from .report_view import make_pdf
+    return Response(make_pdf(service.load_run(run_id),sheet_id),media_type='application/pdf',
+                    headers={'Content-Disposition':f'attachment; filename="rapport-{sheet_id}.pdf"'})
+
+@app.post('/api/runs/{run_id}/reports-export')
+def report_archive(run_id:str,value:dict):
+    from .report_view import archive
+    ids=value.get('sheets')
+    if not isinstance(ids,list) or not ids or len(ids)>500 or not all(isinstance(s,str) for s in ids):
+        raise HTTPException(422,'Sélectionnez de 1 à 500 feuillets.')
+    return Response(archive(service.load_run(run_id),ids),media_type='application/zip',
+                    headers={'Content-Disposition':'attachment; filename="rapports-par-feuillet.zip"'})
+
+@app.get('/api/documents/{doc_id}/meta')
+def document_meta(doc_id:str,page:int=Query(1,ge=1)):
+    doc=catalog.document(doc_id)
+    if not doc:raise KeyError('Document introuvable')
+    with catalog.PDF_LOCK,fitz.open(doc['path']) as pdf:
+        if page>len(pdf):raise HTTPException(422,'Page invalide.')
+        p=pdf[page-1]
+        return catalog.public_document(doc)|{'page':page,'width':p.rect.width,'height':p.rect.height,
+                                             'native_text':len(p.get_text().strip())>=100}
 
 @app.post('/api/runs/{run_id}/results/{result_id}/review')
 def review(run_id:str,result_id:str,value:Review):return service.review(run_id,result_id,value.model_dump())
@@ -100,7 +152,7 @@ def pdf(doc_id:str):
     return FileResponse(doc['path'],media_type='application/pdf')
 
 @app.get('/api/documents/{doc_id}/preview')
-def preview(doc_id:str,page:int=Query(1,ge=1),box:str='',scale:float=Query(.35,ge=.1,le=2)):
+def preview(doc_id:str,page:int=Query(1,ge=1),box:str='',scale:float=Query(.35,ge=.1,le=2),full:bool=False):
     bounds=None
     if box:
         try:
@@ -108,7 +160,7 @@ def preview(doc_id:str,page:int=Query(1,ge=1),box:str='',scale:float=Query(.35,g
             import math
             if len(bounds)!=4 or not all(math.isfinite(n) for n in bounds) or bounds[0]>=bounds[2] or bounds[1]>=bounds[3]:raise ValueError()
         except ValueError:raise HTTPException(422,'Zone invalide.')
-    try:return Response(catalog.render(doc_id,page,bounds,scale),media_type='image/png')
+    try:return Response(catalog.render(doc_id,page,bounds,scale,full=full),media_type='image/png')
     except ValueError as exc:raise HTTPException(422,str(exc))
 
 @app.get('/api/settings')

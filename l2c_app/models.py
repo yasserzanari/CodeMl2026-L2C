@@ -27,6 +27,7 @@ class AnalysisRequest(BaseModel):
     max_ocr_pages: int = Field(default=4, ge=1, le=1000)
 
 class Settings(BaseModel):
+    pairing_assistance: bool = False
     ocr_engine: Literal['easyocr','rapidocr'] = 'easyocr'
     device: Literal['auto', 'cuda', 'cpu'] = 'auto'
     batch_size: int = Field(default=32, ge=1, le=64)

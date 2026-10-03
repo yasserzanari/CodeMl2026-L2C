@@ -3,13 +3,13 @@ version: alpha
 name: Concorde
 description: Bureau de révision local pour les plans de structure et les dessins d’atelier.
 colors:
-  primary: "#2463dc"
-  foreground: "#172d3b"
-  muted: "#607383"
-  background: "#f3f6f9"
+  primary: "#2060df"
+  foreground: "#183247"
+  muted: "#647789"
+  background: "#f0f4f7"
   surface: "#ffffff"
-  navigation: "#142a39"
-  border: "#dce4eb"
+  navigation: "#142e42"
+  border: "#dce5ec"
   success: "#14765a"
   warning: "#9a5a13"
   danger: "#bb3939"
@@ -45,16 +45,16 @@ police distante, CDN ou traceur. Les vignettes proviennent des vrais PDF locaux.
 
 ## Source des tokens
 
-`static/styles.css :root` implémente les couleurs, familles, rayon et états partagés.
+`static/v2.css :root` implémente les couleurs, familles, rayon et états partagés de l’interface Concorde.
 Ce fichier et `UX-CONTRACT.md` constituent la source des décisions de conception.
 Les couleurs secondaires servent exclusivement à distinguer plan, atelier et état.
 
 ## Composition
 
-Navigation navy permanente de 236 px, barre de contexte, contenu sur fond ardoise pâle.
+Navigation navy permanente de 244 px, barre de contexte, contenu sur fond ardoise pâle.
 En-tête concis, puis zone de comparaison dessinée, compteurs réels et bibliothèque.
-Cartes de dossiers à deux colonnes, chaque carte avec une vignette et une action claire.
-La révision utilise un tableau paginé et une boîte de dialogue avec les preuves côte à côte.
+Dossier récent illustré par son plan réel, compteurs compacts et bibliothèque en lignes.
+La révision utilise un tableau paginé et une page dédiée avec les preuves côte à côte.
 À 850 px, navigation compacte ; à 550 px, navigation supérieure et colonnes empilées.
 
 ## Typographie et hiérarchie
@@ -91,3 +91,17 @@ La couverture de lecture et la validation des armatures sont deux informations d
 
 Transitions de survol 150 ms, aucune animation décorative persistante. Une barre de
 progression est alimentée par les pages réellement parcourues ; aucune durée prédite.
+
+## Refonte du bureau de révision — octobre 2026
+
+Le besoin explicite de refonte autorise cette nouvelle identité : navigation profonde,
+surfaces claires et plans réels comme signature visuelle. Les icônes SVG sont locales.
+Le modèle B de tokens reste canonique : v2.css définit les variables partagées
+et les composants consomment ces variables. Les classes de zoom et de progression
+font partie du même fichier afin que les états chargés restent cohérents.
+Aucun style calculé inline. Le turquoise identifie le plan et le cuivre le dessin d’atelier.
+
+Rapports : panneau de sélection à gauche, aperçu papier à droite. Le bouton de feuillet
+ouvre son aperçu ; la case à cocher ne modifie que la sélection d’export. Recherche et
+sélection persistent pendant la consultation. La navigation entre écrans revient en haut.
+Aux largeurs 900 et 680 px, la navigation se compacte puis les panneaux se superposent.

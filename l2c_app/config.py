@@ -12,7 +12,7 @@ for folder in (STORE, MODELS, STORE / 'runs', STORE / 'cache', STORE / 'imports'
     folder.mkdir(parents=True, exist_ok=True)
 
 DEFAULTS = {'device': 'auto', 'batch_size': 32, 'dpi': 144, 'canvas_size': 2560,
-            'ocr_confidence': 0.25, 'ocr_rotations': True, 'ocr_engine': 'easyocr'}
+            'ocr_confidence': 0.25, 'ocr_rotations': True, 'ocr_engine': 'easyocr', 'pairing_assistance': False}
 
 def settings():
     path = STORE / 'settings.json'

@@ -4,11 +4,11 @@
 
 | Capability | Canonical owner | Source of truth | Allowed variants | Verification |
 | --- | --- | --- | --- | --- |
-| Table Selection | Non applicable : aucune sélection multiple | static/app.js | Action Examiner par ligne | Lire une observation |
+| Table Selection | state.selectedSheets et updateReportSelection | static/app.js | Cases des feuillets, tout/aucun ; aperçu indépendant | Sélection, recherche, aperçu et export navigateur |
 | Select/Listbox | native | static/index.html et app.js | Choix finis avec label | Navigation clavier native |
 | Date | Intl.DateTimeFormat | static/app.js date() | fr-CA, fuseau du navigateur | Horodatage dans activité |
 | Form | Formulaire HTML et API Pydantic | static/app.js et models.py | Import, analyse, réglages, révision | Erreur locale et réponse API |
-| Scrollbar | CSS global | static/styles.css :root et html | Tableau overflow auto | Page et dialogue longs |
+| Scrollbar | CSS global | static/v2.css :root et règles globales | Tableau overflow auto | Page et dialogue longs |
 | Toast | toast() | static/app.js | Région status, succès bref | Retour après action |
 | CRUD | API locale FastAPI | server.py et service.py | Import/lecture/révision ; pas de suppression | Persistance locale |
 
@@ -42,3 +42,6 @@ jamais corrigés par l’ajout d’un onclick vide.
 Aucune mesure de performance de détection n’est revendiquée sans annotations de vérité
 terrain et évaluation par projet. Les compteurs affichés sont les résultats du moteur.
 La présentation du rapport et l’interface sont consultables sur les données réelles.
+
+
+Les handlers data-* de app.js sont délégués sur le document. Le contrôle statique affordance.actionless-button ne suit pas les gabarits HTML construits en JavaScript. Vérifier chaque contrôle dans la liste des handlers et dans le navigateur. Les styles calculés par l’interface passent par des classes et attributs data-* afin de respecter la CSP sans styles inline.
