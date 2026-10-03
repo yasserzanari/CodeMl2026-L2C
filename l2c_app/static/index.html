@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="fr-CA">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>Concorde · Révision des structures</title><link rel="stylesheet" href="/styles.css"><script src="/app.js" defer></script></head>
+<body>
+<a class="skip" href="#main">Aller au contenu</a>
+<aside class="sidebar">
+ <a class="brand" href="#overview" aria-label="Concorde, accueil"><span class="brand-mark">C<span>↗</span></span><span>concorde<small>STRUCTURES / L2C</small></span></a>
+ <div class="workspace-label">ESPACE DE RÉVISION</div>
+ <nav aria-label="Navigation principale">
+  <a href="#overview" data-nav="overview"><span aria-hidden="true">▦</span> Vue d’ensemble</a>
+  <a href="#results" data-nav="results"><span aria-hidden="true">⇄</span> Révision des plans <b id="nav-count">—</b></a>
+  <a href="#settings" data-nav="settings"><span aria-hidden="true">⚙</span> Moteur & réglages</a>
+  <a href="#guide" data-nav="guide"><span aria-hidden="true">▤</span> Guide du défi</a>
+ </nav>
+ <div class="sidebar-bottom"><div class="local-indicator"><i></i> Traitement local</div><p>Vos plans restent sur cet ordinateur.</p><div class="engine-mini"><span class="chip-icon">GPU</span><div id="sidebar-device">Chargement du moteur…</div></div></div>
+</aside>
+<div class="shell">
+ <header class="topbar"><div><span class="breadcrumb">Espace de travail</span><span class="slash">/</span><strong id="crumb">Vue d’ensemble</strong></div><div class="top-right"><span class="privacy"><i></i> Confidentiel</span><span class="avatar" title="Espace local">LC</span></div></header>
+ <main id="main" tabindex="-1"><div id="global-error" role="alert" hidden></div><div id="view" aria-busy="true"><div class="loading">Chargement de votre espace de travail…</div></div></main>
+ <footer>CONCORDE <span>Une lecture. Deux documents. Des décisions traçables.</span><span>LOCAL / L2C</span></footer>
+</div>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+<dialog id="upload-dialog" aria-labelledby="upload-title"><form id="upload-form" novalidate><div class="dialog-head"><div><div class="eyebrow">NOUVEAU DOSSIER</div><h2 id="upload-title">Importer un projet</h2></div><button type="button" class="icon-button" data-close aria-label="Fermer">×</button></div><p class="muted">Ajoutez le plan de référence et les dessins d’atelier correspondants. Les fichiers sont conservés localement.</p><label>Nom du projet<input name="name" required maxlength="80" placeholder="Ex. Résidence Saint-Laurent"></label><div class="upload-grid"><label class="dropzone"><span class="file-icon">01</span><strong>Plans de structure</strong><span>La référence de l’ingénieur</span><input name="plans" type="file" accept=".pdf,application/pdf" multiple required><small data-file-summary="plans">PDF · 150 Mo maximum par fichier</small></label><label class="dropzone orange"><span class="file-icon">02</span><strong>Dessins d’atelier</strong><span>Les documents du fabricant</span><input name="atelier" type="file" accept=".pdf,application/pdf" multiple required><small data-file-summary="atelier">PDF · sélection multiple</small></label></div><p class="muted small">200 documents et 600 Mo maximum par projet. PDF sans mot de passe.</p><div id="upload-error" class="form-error" role="alert"></div><progress id="upload-progress" value="0" max="100" hidden></progress><div class="dialog-actions"><button type="button" class="button" data-close>Annuler</button><button class="button primary" type="submit">Importer le projet <span aria-hidden="true">↗</span></button></div></form></dialog>
+<dialog id="analysis-dialog" aria-labelledby="analysis-title"><form id="analysis-form" novalidate><div class="dialog-head"><div><div class="eyebrow">LECTURE & CONCILIATION</div><h2 id="analysis-title">Analyser le projet</h2></div><button type="button" class="icon-button" data-close aria-label="Fermer">×</button></div><input type="hidden" name="project"><p id="analysis-description" class="muted"></p><label>Périmètre de lecture<select name="profile"><option value="complete">Complet · texte PDF + OCR local sur les pages sans texte</option><option value="sample">Aperçu · texte PDF + 4 pages OCR</option><option value="native">Rapide · texte PDF uniquement</option></select></label><div class="notice">Le premier passage OCR peut prendre plusieurs minutes. Les pages déjà lues sont mises en cache. Les annotations ambiguës seront proposées à la révision.</div><div id="analysis-error" class="form-error" role="alert"></div><div class="dialog-actions"><button type="button" class="button" data-close>Annuler</button><button type="submit" class="button primary">Démarrer l’analyse <span aria-hidden="true">→</span></button></div></form></dialog>
+<dialog id="detail-dialog" class="wide-dialog" aria-labelledby="detail-title"><div class="dialog-head"><div><div class="eyebrow">PREUVES & VÉRIFICATION</div><h2 id="detail-title">Examiner une observation</h2></div><button class="icon-button" data-close aria-label="Fermer">×</button></div><div id="detail-content"></div></dialog>
+</body></html>

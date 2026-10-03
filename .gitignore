@@ -1,23 +1,38 @@
-# Secrets et configuration locale
+# Confidential inputs, derived documents and model weights never belong in Git
+/data/
+/artifacts/
+/datasets/
+/runs/
+/cache/
+/research/
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.zip
+*.xlsx
+*.csv
+*.parquet
+*.pth
+*.pt
+*.onnx
+*.keras
+*.h5
+*.traineddata
+*.sqlite
+*.db
+*.log
 .env
 .env.*
 !.env.example
 *.pem
 *.key
-
-# Données et documents de défi: utiliser les copies locales autorisées uniquement
-/data/raw/
-/data/private/
-/data/source/
-/datasets/
-*.sqlite
-*.db
-
-# Artefacts locaux
-__pycache__/
-*.py[cod]
+local-settings.ps1
 .venv/
 venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
 node_modules/
-.DS_Store
 Thumbs.db
+.DS_Store
