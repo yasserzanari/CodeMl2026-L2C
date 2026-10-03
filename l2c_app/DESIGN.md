@@ -105,3 +105,13 @@ Rapports : panneau de sélection à gauche, aperçu papier à droite. Le bouton 
 ouvre son aperçu ; la case à cocher ne modifie que la sélection d’export. Recherche et
 sélection persistent pendant la consultation. La navigation entre écrans revient en haut.
 Aux largeurs 900 et 680 px, la navigation se compacte puis les panneaux se superposent.
+
+## Bureau de révision des plans
+
+La route de détail compacte la navigation à 82 px et conserve deux lecteurs côte à côte.
+Le cadrage initial affiche les zones repérées à partir des coordonnées réelles du moteur.
+Un contrôle commun permet de retrouver les pages entières. Les lecteurs ont chacun
+un zoom et un défilement ; les zooms peuvent être liés. « Adapter » ajuste la source
+aux dimensions disponibles. Le déplacement à la souris complète le défilement natif.
+Le panneau de décision se masque explicitement pour agrandir les sources. Les notes
+non enregistrées restent en mémoire par analyse et observation pendant la session.

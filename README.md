@@ -62,3 +62,22 @@ Le second contrôle crée des PDF fictifs dans un dossier temporaire, passe par 
 `scripts/benchmark_pairing.py --run <run.json> --out <nouveau-dossier-local>` audite les annotations conservées sans refaire l’OCR. Ajouter plusieurs `--run` pour plusieurs projets. `--labels <tableur-local.xlsx>` accepte un tableau de référence à quatre colonnes (feuillet, localisation, plan, atelier) ; cette option requiert `openpyxl`. La couverture en candidats n’est pas la précision de l’appariement. L’absence d’annotations d’atelier dans un profil natif doit être signalée avant d’interpréter les résultats.
 
 Les principes du barème, critères mesurables et limites sont détaillés dans `docs/MATCHING-VALIDATION.md`. Une vérité terrain exhaustive, revue par un ingénieur, reste nécessaire pour mesurer les faux appariements et le rappel de conformité. Les annotations examinées pendant le développement ne deviennent pas un jeu indépendant en changeant leur nom.
+
+## Compléter et auditer les livrables
+
+Lancer Concorde avec `start-concorde.ps1`, puis dans un autre terminal afficher les projets détectés et démarrer les runs complets un par un via l’API loopback. Un run complet peut prendre longtemps; les fichiers restent sous `data/l2c/app/runs/`.
+
+```powershell
+if (Test-Path .\local-settings.ps1) { . .\local-settings.ps1 }
+.\.venv\Scripts\python.exe scripts/run_full_local.py --list
+.\.venv\Scripts\python.exe scripts/run_full_local.py --project CLP --project EspCa3B --project LIGREP --project WP2 --skip-completed
+.\.venv\Scripts\python.exe scripts/audit_deliverables.py
+```
+
+L’audit écrit son état dans `data/l2c/app/audit-deliverables/` et retourne un code non nul si un projet n’a pas d’exports complets ou si le JSON ne respecte pas le modèle courant. Voir `docs/DELIVERABLE-AUDIT.md`. Il mesure la couverture des pages du catalogue et la présence des sorties, pas leur exactitude sémantique.
+
+Pour préparer des paires à faire vérifier par un ingénieur, suivre `docs/ADJUDICATION-WORKFLOW.md`. Le paquet et les labels sont générés hors du dépôt. Les suggestions de Concorde ne constituent jamais une vérité terrain.
+
+Les termes et compteurs employés dans le PDF sont définis dans `docs/REPORT-SEMANTICS.md`. Les écarts restent des propositions à confirmer; les catégories « manquant » et « ajouté » ne sont pas inférées depuis une absence d’appariement.
+
+Le plan de phases et les portes de sortie sont dans `PLAN-L2C-EXECUTION.md`.
