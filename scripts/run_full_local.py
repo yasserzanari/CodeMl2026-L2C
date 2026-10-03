@@ -10,6 +10,7 @@ import sys
 import time
 from pathlib import Path
 from urllib.error import HTTPError, URLError
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -36,7 +37,7 @@ def api_json(path, method="GET", value=None):
         raise RuntimeError("Serveur Concorde local indisponible. Lancez .\\start-concorde.ps1.") from exc
 
 
-def completed_projects(store):
+def completed_projects(store, current_documents):
     completed = set()
     for job_path in (store / "runs").glob("*/job.json"):
         try:
@@ -47,6 +48,23 @@ def completed_projects(store):
             run = json.loads(run_path.read_text("utf-8"))
             stats = run.get("statistics") or {}
             pages = run.get("pages") or []
+            expected_docs = current_documents.get(run.get("project_id"), {})
+            expected_pairs = {
+                (relative, page_number)
+                for relative, document in expected_docs.items()
+                for page_number in range(1, document["pages"] + 1)
+            }
+            seen_pairs = {
+                (str(page.get("file", "")).replace("\\", "/"), page.get("page"))
+                for page in pages if isinstance(page, dict)
+            }
+            hashes_current = bool(expected_docs) and all(
+                isinstance(page, dict)
+                and page.get("source_sha256") == expected_docs.get(
+                    str(page.get("file", "")).replace("\\", "/"), {}
+                ).get("sha256")
+                for page in pages
+            )
             exports = all((job_path.parent / name).is_file() for name in (
                 "informations.json", "comparaisons.json", "rapport.pdf"
             ))
@@ -55,6 +73,8 @@ def completed_projects(store):
                     and stats.get("pages_error", 0) == 0
                     and stats.get("pages_skipped", 0) == 0
                     and len(pages) == stats.get("pages_total")
+                    and expected_pairs == seen_pairs
+                    and hashes_current
                     and exports):
                 completed.add(run.get("project_id"))
         except (OSError, ValueError):
@@ -91,12 +111,23 @@ def main():
     if len(set(args.projects)) != len(args.projects):
         parser.error("chaque ID de projet ne doit apparaître qu’une fois")
 
+    current_documents = {}
+    try:
+        for project_id in args.projects:
+            detail = api_json(f"/api/projects/{quote(project_id, safe='')}")
+            current_documents[project_id] = {
+                document["relative"]: {"sha256": document["sha256"], "pages": document["pages"]}
+                for document in detail.get("documents", [])
+            }
+    except (RuntimeError, KeyError, ValueError) as exc:
+        parser.error(f"impossible de lire le manifeste local du projet : {exc}")
+
     active = [job for job in overview.get("jobs", [])
               if job.get("status") in ("queued", "running")]
     if active:
         parser.error("une autre analyse est déjà en cours; attendez sa fin avant le lot")
 
-    already_complete = completed_projects(STORE) if args.skip_completed else set()
+    already_complete = completed_projects(STORE, current_documents) if args.skip_completed else set()
     selected = [project_id for project_id in args.projects
                 if project_id not in already_complete]
     for project_id in args.projects:

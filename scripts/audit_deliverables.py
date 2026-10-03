@@ -102,6 +102,7 @@ def catalog_inventory(raw_root: Path, store_root: Path) -> tuple[dict[str, dict[
             inventory.setdefault(project_id, {"documents": 0, "pages": 0, "plan_pages": 0,
                                                "atelier_pages": 0, "source_manifest": [],
                                                "_expected_page_keys": set(),
+                                               "_expected_file_hashes": {},
                                                "fresh_documents": 0, "stale_documents": 0})
             inventory[project_id]["documents"] += 1
             continue
@@ -114,6 +115,7 @@ def catalog_inventory(raw_root: Path, store_root: Path) -> tuple[dict[str, dict[
         project = inventory.setdefault(project_id, {"documents": 0, "pages": 0, "plan_pages": 0,
                                                        "atelier_pages": 0, "source_manifest": [],
                                                        "_expected_page_keys": set(),
+                                                       "_expected_file_hashes": {},
                                                        "fresh_documents": 0, "stale_documents": 0})
         project["documents"] += 1
         if not fresh:
@@ -134,6 +136,7 @@ def catalog_inventory(raw_root: Path, store_root: Path) -> tuple[dict[str, dict[
         project["_expected_page_keys"].update(
             (relative.as_posix(), page_number) for page_number in range(1, pages + 1)
         )
+        project["_expected_file_hashes"][relative.as_posix()] = digest
         project["source_manifest"].append((relative.as_posix(), digest, pages, role))
 
     for project_id, project in inventory.items():
@@ -147,7 +150,7 @@ def catalog_inventory(raw_root: Path, store_root: Path) -> tuple[dict[str, dict[
         )
         summary["projects"][project_id] = {
             key: value for key, value in project.items()
-            if key not in ("source_manifest_sha256", "_expected_page_keys")
+            if key not in ("source_manifest_sha256", "_expected_page_keys", "_expected_file_hashes")
         } | {"source_manifest_sha256": project["source_manifest_sha256"]}
     return inventory, summary
 
@@ -161,6 +164,8 @@ def page_coverage(run: dict[str, Any], expected: dict[str, Any]) -> dict[str, An
     source_counts = {"plan": 0, "atelier": 0, "other": 0}
     errors = 0
     skipped = 0
+    source_hash_missing = 0
+    source_hash_mismatch = 0
     malformed = 0
     for row in pages:
         if not isinstance(row, dict):
@@ -169,7 +174,15 @@ def page_coverage(run: dict[str, Any], expected: dict[str, Any]) -> dict[str, An
         filename = row.get("file")
         number = row.get("page")
         if isinstance(filename, str) and isinstance(number, int):
-            seen.add((filename.replace("\\", "/"), number))
+            normalized_filename = filename.replace("\\", "/")
+            seen.add((normalized_filename, number))
+            expected_hash = expected.get("_expected_file_hashes", {}).get(normalized_filename)
+            actual_hash = row.get("source_sha256")
+            if expected_hash:
+                if not isinstance(actual_hash, str):
+                    source_hash_missing += 1
+                elif actual_hash != expected_hash:
+                    source_hash_mismatch += 1
         else:
             malformed += 1
         source = row.get("source")
@@ -191,6 +204,10 @@ def page_coverage(run: dict[str, Any], expected: dict[str, Any]) -> dict[str, An
         "statistics_pages_total": reported_total,
         "page_errors": errors,
         "page_skipped": skipped,
+        "page_source_hash_missing": source_hash_missing,
+        "page_source_hash_mismatch": source_hash_mismatch,
+        "source_hashes_match_catalog": bool(expected.get("_expected_file_hashes"))
+        and source_hash_missing == 0 and source_hash_mismatch == 0,
         "malformed_page_rows": malformed,
         "source_rows": source_counts,
         "missing_source_pages": len(expected_keys - seen) if expected_keys else None,
@@ -287,6 +304,7 @@ def inspect_runs(store_root: Path, inventory: dict[str, dict[str, Any]], workspa
                 and coverage["processing_counts_consistent"]
                 and coverage["page_errors"] == 0
                 and coverage["page_skipped"] == 0
+                and coverage["source_hashes_match_catalog"]
                 and coverage["malformed_page_rows"] == 0
                 and information_validation["valid"]
                 and all(item["present"] for item in exports.values())

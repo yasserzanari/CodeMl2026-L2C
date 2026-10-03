@@ -52,7 +52,8 @@ def execute(ident):
                     job.update(status='cancelled',message='Analyse arrêtée. Les pages déjà traitées restent en cache.'); save(job);return
                 job.update(stage='reading',current_doc=doc_id,current_page=index+1)
                 job['message']=f"{doc['name']} · page {index+1}/{doc['pages']}";save(job)
-                meta={'doc_id':doc_id,'file':doc['relative'],'page':index+1,'source':doc['role']}
+                meta={'doc_id':doc_id,'file':doc['relative'],'page':index+1,'source':doc['role'],
+                      'source_sha256':doc['sha256']}
                 allow=job['request']['profile']=='complete' or (job['request']['profile']=='sample' and ocr_used<job['request']['max_ocr_pages'])
                 try:
                     reading=read_page(doc['path'],index,doc['sha256'],job['config'],allow_ocr=allow)
