@@ -1,6 +1,6 @@
 # Concorde L2C deliverable coverage gate
 
-This command inventories local release evidence for the four provided projects (CLP, EspCa3B, LIGREP, WP2). It derives expected file/page pairs from fresh catalog entries, classifies each saved run as complete or archival/partial, checks the three generated export artifacts and validates every information row with Concorde's current `Information` model. It records SHA-256 digests for catalog, run/job metadata, optional manifests, and exports. The only write is the caller-selected audit JSON.
+This command inventories local release evidence for the four provided projects (CLP, EspCa3B, LIGREP, WP2). It derives expected file/page pairs and source hashes from fresh catalog entries, classifies each saved run as complete or archival/partial, checks that run page hashes match the current PDFs, checks the three generated export artifacts, and validates each information row against Concorde's current `Information` model. It records SHA-256 digests for catalog, run/job metadata, optional manifests, and exports. The only write is the caller-selected audit JSON.
 
 The report contains project IDs and aggregate counts only. It does not open source PDFs, print source file names, or include OCR text, annotation content, or display names. It does not modify the catalog, saved runs, source documents, or exports. The only write is the JSON report in the selected local output folder.
 
@@ -13,7 +13,7 @@ From the workspace root in PowerShell:
 $LASTEXITCODE
 ```
 
-The default output is `data/l2c/app/audit-deliverables/deliverable-audit.json`, under the workspace's ignored local data. Exit code `0` means each required project has a completed run with `scope: complete`, exact source-file/page coverage against fresh catalog entries, no skipped/error pages, valid `informations.json` rows matching the run record count, and all three exports (`informations.json`, `comparaisons.json`, `rapport.pdf`). Exit code `1` means at least one project is missing a complete set. Invalid roots or a non-ignored output path are command errors.
+The default output is `data/l2c/app/audit-deliverables/deliverable-audit.json`, under the workspace's ignored local data. Exit code `0` means each required project has a completed run with `scope: complete`, exact source-file/page coverage and matching source SHA-256 values against fresh catalog entries, no skipped/error pages, valid `informations.json` rows matching the run record count with unique IDs, and all three exports (`informations.json`, `comparaisons.json`, `rapport.pdf`). Exit code `1` means at least one project is missing a complete set. Invalid roots or a non-ignored output path are command errors.
 
 To audit an explicitly selected local store and output location:
 
@@ -30,7 +30,7 @@ The output location must stay under `--workspace` and be ignored by Git. The com
 ## What the gate establishes
 
 - Catalog page totals come from local `catalog.json` entries whose cached file stamp still matches the local source file metadata. Missing or stale entries prevent a completeness pass; source PDFs are not opened to repair the cache.
-- A run is complete only when its saved job is completed, its run scope is `complete`, every expected source file/page pair occurs exactly once, no page is skipped, errored, or malformed, the processed counts agree, the information JSON validates against the current Pydantic model and row count, and all expected export files exist. Partial, sample, native-only, failed, and interrupted runs remain in the report as archival/partial evidence.
+- A run is complete only when its saved job is completed, its run scope is `complete`, every expected source file/page pair occurs exactly once with the same SHA-256 as the current catalog, no page is skipped, errored, or malformed, the processed counts agree, the information JSON validates against the current Pydantic model and row count with unique IDs, and all expected export files exist. Partial, sample, native-only, old runs without per-page source hashes, failed, and interrupted runs remain in the report as archival/partial evidence.
 - Digests support later integrity checks for the listed local artifacts. They do not certify authorship, semantic correctness, or that the source set itself is the intended official set.
 
 ## What it cannot establish

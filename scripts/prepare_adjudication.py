@@ -81,6 +81,7 @@ def load_inputs(run_paths: list[Path], source_root: Path | None) -> tuple[list[d
     records_by_id: dict[str, dict] = {}
     record_run: dict[str, dict] = {}
     source_hashes: dict[tuple[str, str], str | None] = {}
+    source_doc_hashes: dict[tuple[str, str], str] = {}
     for path in run_paths:
         path = path.resolve()
         run = json.loads(path.read_text(encoding="utf-8"))
@@ -101,19 +102,34 @@ def load_inputs(run_paths: list[Path], source_root: Path | None) -> tuple[list[d
         for page in run.get("pages", []):
             relative = page.get("file")
             key = (project_id, str(relative)) if relative else None
-            if source_root and key and key not in source_hashes:
+            run_hash = page.get("source_sha256")
+            if key and isinstance(run_hash, str):
+                prior_hash = source_hashes.get(key)
+                if prior_hash and prior_hash != run_hash:
+                    raise ValueError(f"Conflicting source hashes inside run {run['id']} for {relative}")
+                source_hashes[key] = run_hash
+            if source_root and key:
                 source = safe_source_path(source_root, project_id, str(relative))
-                source_hashes[key] = sha256_file(source) if source else None
+                actual_hash = sha256_file(source) if source else None
+                if source_hashes.get(key) and actual_hash and source_hashes[key] != actual_hash:
+                    raise ValueError(f"Source PDF hash differs from run {run['id']} for {relative}")
+                if actual_hash:
+                    source_hashes[key] = actual_hash
+            doc_id = page.get("doc_id")
+            if key and isinstance(source_hashes.get(key), str) and doc_id:
+                source_doc_hashes[(project_id, str(doc_id))] = source_hashes[key]
         for record in run["records"]:
             info = record["information"]
             ident = str(info["id"])
             if ident in records_by_id:
                 raise ValueError(f"Duplicate annotation ID {ident!r}; runs must have unique IDs")
             source_file = str(info.get("fichier", ""))
-            source_sha = None
+            source_sha = source_doc_hashes.get((project_id, str(record.get("doc_id", ""))))
+            if source_file:
+                source_sha = source_sha or source_hashes.get((project_id, source_file))
             if source_root and source_file:
                 source_key = (project_id, source_file)
-                if source_key not in source_hashes:
+                if not source_hashes.get(source_key):
                     source = safe_source_path(source_root, project_id, source_file)
                     source_hashes[source_key] = sha256_file(source) if source else None
                 source_sha = source_hashes[source_key]
