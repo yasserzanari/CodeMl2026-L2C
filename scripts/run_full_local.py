@@ -140,7 +140,7 @@ def main():
     for project_id in selected:
         project = by_id[project_id]
         try:
-            job = api_json(f"/api/projects/{project_id}/analyse", method="POST",
+            job = api_json(f"/api/projects/{quote(project_id, safe='')}/analyse", method="POST",
                            value={"profile": "complete", "max_ocr_pages": 1000})
         except (RuntimeError, ValueError) as exc:
             print(f"ARRÊT {project['name']} — {exc}", file=sys.stderr)
