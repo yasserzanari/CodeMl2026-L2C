@@ -7,7 +7,7 @@ de `v2.css`. Les icônes sont des SVG locaux et les aperçus sont les documents 
 ## Vérifications effectuées
 
 - Chrome, écran de bureau, 1280 × 900 et 390 × 844 ; dimensions restaurées ensuite.
-- Projets : bibliothèque, dossier récent, ouverture de CLP.
+- Projets : bibliothèque, dossier récent et ouverture d’un projet local.
 - Documents : liste et aperçu PDF chargés.
 - Révision : ouverture d’une observation, sources côte à côte, zoom synchronisé.
 - Brouillon de note conservé pendant le zoom ; aucune décision enregistrée.
@@ -23,7 +23,7 @@ de `v2.css`. Les icônes sont des SVG locaux et les aperçus sont les documents 
 - À 390 px : largeur du document égale à sa largeur utile (380 px), sans débordement.
 - Console navigateur : aucune erreur retournée pendant les parcours contrôlés.
 - `node --check l2c_app/static/app.js` et `git diff --check` : réussis.
-- Suite Python existante : 34 tests réussis, un avertissement de dépréciation Starlette.
+- Suite Python : 111 tests réussis, un avertissement de dépréciation Starlette/httpx.
 
 ## Limites
 
@@ -47,3 +47,8 @@ Capture : `ui-studio/rapports.png`.
 - À 390 × 844 : document de 380 px utiles, sans débordement horizontal ; panneaux empilés.
 - Syntaxe JavaScript et vérification des espaces Git réussies.
 - Capture : `ui-studio/revision-plans.png`.
+
+
+## Mise à jour navigateur — 4 octobre 2026
+
+Le parcours a été rejoué sur des projets locaux après les corrections d’OCR et de révision. Les routes Projets, Révision, Détail, Rapports, aperçu PDF par feuillet, Réglages, Guide et Import ont répondu sans erreur console; l’aperçu PDF a retourné une image valide.

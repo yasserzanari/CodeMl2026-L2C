@@ -1,19 +1,22 @@
 # Concorde L2C deliverable coverage gate
 
-This command inventories local release evidence for the four provided projects (CLP, EspCa3B, LIGREP, WP2). It derives expected file/page pairs and source hashes from fresh catalog entries, classifies each saved run as complete or archival/partial, checks that run page hashes match the current PDFs, checks the three generated export artifacts, and validates each information row against Concorde's current `Information` model. It records SHA-256 digests for catalog, run/job metadata, optional manifests, and exports. The only write is the caller-selected audit JSON.
+This command inventories local release evidence for the project set configured in the application. It derives expected file/page pairs and source hashes from fresh catalog entries, classifies each saved run as complete or archival/partial, checks that run page hashes match the current PDFs, checks the three generated export artifacts, and validates each information row against Concorde's current `Information` model. It records SHA-256 digests for catalog, run/job metadata, optional manifests, and exports. The only write is the caller-selected audit JSON.
 
 The report contains project IDs and aggregate counts only. It does not open source PDFs, print source file names, or include OCR text, annotation content, or display names. It does not modify the catalog, saved runs, source documents, or exports. The only write is the JSON report in the selected local output folder.
 
 ## Run the gate
 
-From the workspace root in PowerShell:
+From the repository root in PowerShell (load the optional local settings to use the external data/model store):
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\audit_deliverables.py
+if (Test-Path .\local-settings.ps1) { . .\local-settings.ps1 }
+& $env:CONCORDE_PYTHON scripts\audit_deliverables.py
 $LASTEXITCODE
 ```
 
-The default output is `data/l2c/app/audit-deliverables/deliverable-audit.json`, under the workspace's ignored local data. Exit code `0` means each required project has a completed run with `scope: complete`, exact source-file/page coverage and matching source SHA-256 values against fresh catalog entries, no skipped/error pages, valid `informations.json` rows matching the run record count with unique IDs, and all three exports (`informations.json`, `comparaisons.json`, `rapport.pdf`). Exit code `1` means at least one project is missing a complete set. Invalid roots or a non-ignored output path are command errors.
+`L2C_DATA` and `L2C_STORE` are honored for source and run roots; explicit arguments override them. File/page identities are relative to each project directory, matching the app catalog. The output remains inside the repository even when the input store is external.
+
+The default output is `data/l2c/app/audit-deliverables/deliverable-audit.json`, under the workspace's ignored local data. Exit code `0` means each configured project has a completed run with `scope: complete`, exact source-file/page coverage and matching source SHA-256 values against fresh catalog entries, no skipped/error pages, valid `informations.json` rows matching the run record count with unique IDs, and all three exports (`informations.json`, `comparaisons.json`, `rapport.pdf`). Exit code `1` means at least one project is missing a complete set. Invalid roots or a non-ignored output path are command errors.
 
 To audit an explicitly selected local store and output location:
 

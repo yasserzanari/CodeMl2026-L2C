@@ -1,10 +1,10 @@
 # Plan d’exécution L2C — Concorde
 
-Date : 3 octobre 2026
+Plan produit : 3 octobre 2026
 
 ## Objectif
 
-Livrer un outil local reproductible qui prend les PDF d’un projet, extrait les annotations d’armature avec leur provenance, propose des rapprochements explicables, produit les JSON et un rapport PDF par feuillet, puis permet à un ingénieur de vérifier les conclusions. Les quatre projets fournis servent au développement; le cinquième projet du jury reste le seul contexte prévu pour la démonstration finale indépendante.
+Livrer un outil local reproductible qui prend des PDF, extrait les annotations d’armature avec leur provenance, propose des rapprochements explicables, produit les JSON et un rapport PDF par feuillet, puis permet à un ingénieur de vérifier les conclusions. Les documents d’évaluation réservés restent séparés du développement.
 
 Les documents, extraits, caches, labels et rapports réels restent sur la machine et dans les répertoires locaux ignorés par Git. Aucun contenu réel du défi ne doit être ajouté au dépôt ou transmis à un service externe.
 
@@ -12,7 +12,7 @@ Les documents, extraits, caches, labels et rapports réels restent sur la machin
 
 - Application locale, extraction texte/OCR, JSON/PDF, notebook, moteur de rapprochement conservateur et aide expérimentale existent.
 - RapidOCR est le moteur actuellement retenu dans les réglages; les résultats disponibles sont exploratoires et ne mesurent pas la conformité structurelle.
-- Des exports existent pour les quatre projets, mais seuls les runs CLP recensés couvrent le projet complet. EspCa3B, LIGREP et WP2 ont des profils partiels/natifs. Ils ne satisfont donc pas encore le livrable d’exports complets pour chaque projet.
+- Les sorties locales dépendent du corpus présent sur le poste et ne sont pas distribuées avec le code.
 - Les comparaisons de référence ne forment pas une vérité terrain exhaustive. Les paires, faux appariements et vrais négatifs n’ont pas été adjudiqués de façon suffisante pour annoncer précision/rappel.
 - Le cinquième projet n’est pas disponible localement. Une performance sur ce projet ne peut pas être vérifiée à ce stade.
 - Le dépôt contient des changements locaux non commités. Ils doivent être examinés et intégrés sans écraser le travail existant.
@@ -58,7 +58,7 @@ Les documents, extraits, caches, labels et rapports réels restent sur la machin
 
 ### 1. Constituer une vérité terrain utile — responsable : ingénieur/réviseur; outil fourni par le chantier A
 
-1. Faire adjudiquer les quatre cas de référence interprétables et documenter les deux cas ambigus au lieu de leur assigner une classe forcée.
+1. Faire adjudiquer les cas de référence interprétables et documenter les cas ambigus au lieu de leur assigner une classe forcée.
 2. Ajouter des exemples vérifiés de conformités, non-conformités, non-correspondances et lectures incertaines, sur plusieurs familles et les deux côtés des dessins.
 3. Revoir les identités, niveaux, coordonnées/rectangles source, repères et attributs; conserver qui a pris chaque décision et sa justification.
 4. Conserver les splits au niveau projet ou document. Aucun extrait, tuile, révision ou page d’un même dessin ne doit passer du développement au holdout.
@@ -75,14 +75,14 @@ Les documents, extraits, caches, labels et rapports réels restent sur la machin
 
 **Porte :** protocole de comparaison fixé avant calcul; résultats présentés par projet/famille avec erreurs et cas non mesurés.
 
-### 3. Couvrir les quatre projets connus — responsable : opérateur local
+### 3. Couvrir le corpus de développement autorisé — responsable : opérateur local
 
 1. Lancer des runs complets, en conservant chaque run échoué, les versions de moteurs, réglages, hashes d’entrée, statut CPU/GPU et durées.
 2. Contrôler que toutes les pages sont comptées, que les pages en échec/ignorées sont visibles et que les coordonnées respectent l’annexe A.
 3. Produire et valider le JSON et le rapport PDF par projet; comparer la couverture réelle au catalogue.
 4. Garder les sorties réelles dans le dossier local ignoré; ne publier que des exemples synthétiques.
 
-**Porte :** quatre projets ont des exports complets ou une liste explicite, revue, de leurs exceptions. Une exécution complète ne signifie pas que son contenu est exact.
+**Porte :** chaque lot autorisé a des exports complets ou une liste explicite, revue, de ses exceptions. Une exécution complète ne signifie pas que son contenu est exact.
 
 ### 4. Préparer la démo et la remise — responsable : intégration
 
@@ -117,8 +117,14 @@ Ne pas inventer de seuil de réussite, tolérance d’ingénierie ou formule de 
 - [x] A — paquet d’adjudication et protocole local prêts; les labels d’ingénieur restent à créer.
 - [x] B — audit automatique de complétude de remise ajouté; il n’a pas encore été exécuté.
 - [x] C — rapport séparant propositions machine, décisions humaines et couverture ajouté.
-- [ ] Intégration et revue complète des changements locaux déjà présents; contributions revues sans relancer de tests.
+- [x] Intégration et revue des changements locaux : suite complète et contrôles frontend relancés après corrections.
 - [ ] Adjudication indépendante des paires réelles.
 - [ ] Correction puis évaluation contrôlée de l’appariement.
-- [ ] Runs complets des quatre projets et exports finaux.
+- [x] Runs complets des quatre projets et exports finaux contrôlés par l’audit local; les sorties réelles restent hors Git.
 - [ ] Préparation et répétition de la démo/remise.
+
+## État actuel
+
+Le dépôt contient l’application locale, les scripts de préparation et d’audit, le notebook et des tests synthétiques. L’exécution de la suite automatisée est documentée dans le README. Les corpus et résultats réels restent locaux et ignorés par Git.
+
+L’appariement reste heuristique. Une validation indépendante par un ingénieur, un jeu de référence exhaustif et une répétition chronométrée de la démonstration restent nécessaires avant toute affirmation de performance métier ou de score.

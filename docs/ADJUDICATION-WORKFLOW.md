@@ -37,7 +37,7 @@ python .\scripts\prepare_adjudication.py prepare `
   --run "C:\path\to\local\run-a.json" `
   --run "C:\path\to\local\run-b.json" `
   --source-root "C:\path\to\local\project-pdfs" `
-  --out "C:\Users\PC\Documents\l2c-review\packet-2026-10-03"
+  --out "C:\path\to\private-review\packet"
 ```
 
 For one run, `--source-root` may be that project's root. For multiple runs, it
@@ -100,9 +100,9 @@ directory and preserves both input files unchanged.
 
 ```powershell
 python .\scripts\prepare_adjudication.py validate `
-  --packet "C:\Users\PC\Documents\l2c-review\packet-2026-10-03\review-packet.json" `
-  --labels "C:\Users\PC\Documents\l2c-review\packet-2026-10-03\review-template.csv" `
-  --out "C:\Users\PC\Documents\l2c-review\validated-2026-10-03"
+  --packet "C:\path\to\private-review\packet\review-packet.json" `
+  --labels "C:\path\to\private-review\packet\review-template.csv" `
+  --out "C:\path\to\private-review\validated-labels"
 ```
 
 Output `validated-labels.json` includes stable relation IDs, human outcomes,
