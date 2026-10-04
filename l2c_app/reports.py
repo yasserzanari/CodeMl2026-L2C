@@ -8,6 +8,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from .config import write_json
+from .presence import LABELS as PRESENCE_LABELS,counts as presence_counts
 
 
 MACHINE_LABELS = {
@@ -110,7 +111,8 @@ def export(run, folder):
         para(f"{reviewed_count}/{len(results)} observations examinées · "
              + ' · '.join(f"{reviews.get(key, 0)} {label}" for key, label in REVIEW_LABELS.items())
              + f" · {reviews.get('non examinée', 0)} non examinées"),
-        para('Les catégories officielles « manquant dans l’atelier » et « ajouté dans l’atelier » ne sont pas établies par cette analyse. Un élément non apparié, une page vide ou une lecture incomplète ne prouve pas une absence. Une couverture incomplète empêche toute conclusion sur les éléments non détectés.'),
+        para('Présence, décisions humaines : '+' · '.join(f'{presence_counts(results).get(k,0)} {label}' for k,label in PRESENCE_LABELS.items())),
+        para('Les catégories « manquant dans l’atelier » et « ajouté dans l’atelier » nécessitent une décision humaine documentée sur un périmètre complet. Un élément non apparié, une page vide ou une lecture incomplète ne prouve pas une absence. Les décisions de présence restent séparées des propositions machine.'),
         para('Un « accord partiel » porte uniquement sur les attributs lisibles comparés. Il ne constitue pas une approbation technique, une vérification exhaustive ni une certification.'),
         Paragraph('Sources et sorties', styles['Heading2']),
     ]
@@ -162,12 +164,17 @@ def export(run, folder):
         story.extend([PageBreak(), Paragraph(escape(str(sheet)), styles['Heading1'])])
         counts = Counter(r.get('status', 'inconnu') for r in items)
         story.append(para(' · '.join(f"{counts.get(key, 0)} {label}" for key, label in MACHINE_LABELS.items())))
+        story.append(para('Présence, décisions humaines : '+' · '.join(f'{presence_counts(items).get(k,0)} {label}' for k,label in PRESENCE_LABELS.items())))
         for result in items:
             status = result.get('status', 'inconnu')
-            if status == 'a_verifier':
+            presence=result.get('presence_review') or {}
+            if status == 'a_verifier' and not presence:
                 continue
             story.extend([Paragraph(escape(f"{result.get('element', 'Élément')} · {MACHINE_LABELS.get(status, status)}"), styles['Heading3']),
                           para(result.get('reason', 'Motif non renseigné.'))])
+            if presence:
+                story.append(para(PRESENCE_LABELS.get(presence['outcome'],'Conclusion de présence retirée / à vérifier')+' · '+presence['adjudicator']+' · '+presence['at']+' · '+presence['note']))
+                story.append(para('Documents vérifiés : '+', '.join(d['name'] for d in presence.get('checked_documents',[]))))
             review = result.get('review') or {}
             if review:
                 story.append(para(f"Décision humaine : {REVIEW_LABELS.get(review.get('decision'), review.get('decision', 'inconnue'))}"
@@ -187,7 +194,7 @@ def export(run, folder):
                     if bars:
                         story.append(para(' | '.join(str(a) for a in bars)))
             for diff in result.get('differences') or []:
-                story.append(para(f"Écart candidat {diff.get('field', '?')} : plan {diff.get('plan', '?')} / atelier {diff.get('atelier', '?')}"))
+                story.append(para(f"Écart candidat {diff.get('repere','')} {diff.get('field', '?')} : plan {diff.get('plan', '?')} / atelier {diff.get('atelier', '?')}"))
             story.append(Spacer(1, 5))
         pending = [r for r in items if r.get('status') == 'a_verifier']
         if pending:

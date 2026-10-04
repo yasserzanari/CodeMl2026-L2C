@@ -16,7 +16,17 @@ DEFAULTS = {'device': 'auto', 'batch_size': 32, 'dpi': 144, 'canvas_size': 2560,
 
 def settings():
     path = STORE / 'settings.json'
-    return DEFAULTS | (json.loads(path.read_text('utf-8')) if path.exists() else {})
+    try:
+        stored = json.loads(path.read_text('utf-8')) if path.exists() else {}
+    except (OSError, json.JSONDecodeError):
+        stored = {}
+    if not isinstance(stored, dict):
+        stored = {}
+    if stored.get('device') not in ('auto', 'cuda', 'cpu'):
+        stored.pop('device', None)
+    if stored.get('ocr_engine') not in ('easyocr', 'rapidocr'):
+        stored.pop('ocr_engine', None)
+    return DEFAULTS | stored
 
 def write_json(path, value):
     path = Path(path)

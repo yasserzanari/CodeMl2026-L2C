@@ -10,11 +10,11 @@ import sys
 import time
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parent.parent
-BASE_URL = "http://127.0.0.1:8765"
+BASE_URL = os.environ.get("CONCORDE_BASE_URL", "http://127.0.0.1:8766").rstrip("/")
 STORE = Path(os.environ.get("L2C_STORE", ROOT / "data/l2c/app")).expanduser().resolve()
 
 
@@ -73,6 +73,7 @@ def completed_projects(store, current_documents):
                     and stats.get("pages_error", 0) == 0
                     and stats.get("pages_skipped", 0) == 0
                     and len(pages) == stats.get("pages_total")
+                    and all(page.get("method") not in ("error", "skipped") for page in pages)
                     and expected_pairs == seen_pairs
                     and hashes_current
                     and exports):
@@ -83,20 +84,30 @@ def completed_projects(store, current_documents):
 
 
 def main():
+    global BASE_URL
     parser = argparse.ArgumentParser(
         description="Lance les analyses OCR complètes en local, une à la fois."
     )
+    parser.add_argument("--base-url", default=BASE_URL, help="URL du serveur Concorde local")
     parser.add_argument("--project", action="append", dest="projects", metavar="ID",
                         help="ID de projet du catalogue; répétable")
     parser.add_argument("--list", action="store_true", help="afficher le catalogue local")
+    parser.add_argument("--wait-active", action="store_true",
+                        help="attendre la fin du job actif avant le lot")
     parser.add_argument("--skip-completed", action="store_true",
                         help="ignorer les projets qui ont déjà un run complet terminé")
     args = parser.parse_args()
+    endpoint = urlparse(args.base_url)
+    if endpoint.scheme != "http" or endpoint.hostname not in ("127.0.0.1", "localhost", "::1") or endpoint.path not in ("", "/") or endpoint.query or endpoint.fragment or endpoint.username:
+        parser.error("--base-url doit être une URL HTTP locale sans chemin ni identifiants")
+    BASE_URL = args.base_url.rstrip("/")
 
     try:
         overview = api_json("/api/overview")
     except RuntimeError as exc:
         parser.error(str(exc))
+    if overview.get("application") != "concorde":
+        parser.error("le serveur local ne correspond pas à Concorde")
     available = overview.get("projects", [])
     by_id = {project["id"]: project for project in available}
     if args.list:
@@ -124,8 +135,17 @@ def main():
 
     active = [job for job in overview.get("jobs", [])
               if job.get("status") in ("queued", "running")]
-    if active:
-        parser.error("une autre analyse est déjà en cours; attendez sa fin avant le lot")
+    if active and not args.wait_active:
+        parser.error("une autre analyse est déjà en cours; attendez sa fin ou utilisez --wait-active")
+    while active:
+        print("ATTENTE analyse active : " + ", ".join(job["id"] for job in active), flush=True)
+        time.sleep(5)
+        try:
+            overview = api_json("/api/overview")
+        except RuntimeError as exc:
+            parser.error(str(exc))
+        active = [job for job in overview.get("jobs", []) if job.get("status") in ("queued", "running")]
+
 
     already_complete = completed_projects(STORE, current_documents) if args.skip_completed else set()
     selected = [project_id for project_id in args.projects

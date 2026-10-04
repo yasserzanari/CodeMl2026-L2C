@@ -1,83 +1,107 @@
-# Concorde — révision locale de plans
+# Concorde
 
-Dashboard français pour comparer les annotations d’armatures d’un plan de référence et des dessins d’atelier. Python, PDF natif, OCR préentraîné local sur CUDA, révision visuelle, exports JSON et PDF. Aucune intégration WhatsApp et aucune API IA distante.
+**Concorde** est un outil local de révision de plans d’armatures. Il extrait les annotations depuis des PDF, propose des correspondances entre plans et dessins d’atelier, puis aide un réviseur à examiner les sources et les écarts. Il produit des exports JSON et des rapports PDF par feuillet.
 
-## Installation Windows
+Le projet est un prototype d’aide à la revue. Les résultats automatiques ne certifient pas la conformité d’un ouvrage; les décisions d’ingénierie restent humaines.
 
-Python 3.11 et pilote NVIDIA compatible CUDA 12.8 :
+## Fonctionnalités
+
+- Extraction du texte PDF natif et OCR local pour les pages numérisées.
+- Détection OCR en tuiles pour traiter les grands dessins.
+- Rapprochement explicable des éléments à partir de leur identité et du contexte du dessin, avant de comparer les valeurs d’armature.
+- Abstention et revue visuelle lorsque plusieurs correspondances restent plausibles.
+- Décisions humaines distinctes des propositions automatiques, avec justification et traçabilité.
+- Suivi de couverture, coordonnées et liens vers les pages sources; exports JSON et PDF.
+- Outils facultatifs d’adjudication, de comparaison de révisions et d’annotation PDF.
+- Interface locale en français, notebook de démonstration et scripts Windows.
+
+## Installation et démarrage (Windows)
+
+Prérequis : Python 3.11. Pour CUDA, installer un pilote NVIDIA compatible avec CUDA 12.8. L’installation par défaut prépare CUDA et télécharge les dépendances et poids OCR nécessaires.
 
 ```powershell
 .\install-concorde.ps1
 .\start-concorde.ps1
 ```
 
-Ouvrir http://127.0.0.1:8765. Arrêter avec `stop-concorde.ps1`. Les modèles sont téléchargés une seule fois par `scripts/download_l2c_models.py`, puis l’inférence interdit leur téléchargement automatique. Aucun document n’est inclus dans ce dépôt.
+Ouvrir <http://127.0.0.1:8766>. Arrêter le serveur avec :
 
-Importer deux groupes de PDF depuis l’interface, choisir le profil d’analyse, examiner les observations et télécharger les exports. Le profil aperçu limite l’OCR : il ne représente pas une analyse complète. Les décisions humaines restent distinctes des propositions automatiques.
+```powershell
+.\stop-concorde.ps1
+```
 
-## Configuration locale
+Pour un poste sans GPU NVIDIA, installer le profil CPU avec `.install-concorde.ps1 -Device cpu`. Le notebook nécessite Jupyter, à installer séparément. Les scripts prennent en charge une installation hors ligne avec `-Wheelhouse` si les paquets et poids requis ont été préparés localement.
 
-Variables facultatives `L2C_DATA` (PDF), `L2C_STORE` (imports/cache/runs), `L2C_MODELS` (poids EasyOCR). Les chemins par défaut sont `data/l2c/raw`, `data/l2c/app`, `artifacts/l2c/models`. `CONCORDE_PYTHON` permet au lanceur d’utiliser un environnement Python déjà installé. Les fichiers `local-settings.ps1` sont ignorés et peuvent définir ces variables sur votre machine.
+Les poids OCR peuvent aussi être préparés explicitement avec `scripts/download_l2c_models.py`. L’inférence ne télécharge pas de modèle à la volée. Les documents, poids, caches et exports sont exclus de Git.
 
-Les documents, extraits, résultats, captures et poids restent locaux et ignorés par Git. Ne jamais les ajouter avec `git add -f`. Le serveur écoute uniquement sur loopback, sans CDN. Il ne fournit pas d’authentification pour un déploiement public. Ne pas exposer son port sur Internet.
+## Utilisation
 
-## Moteur et limites
+1. Importer les PDF du plan et des dessins d’atelier dans l’interface.
+2. Choisir le profil complet pour un traitement détaillé. Le profil rapide est un aperçu et peut manquer des annotations.
+3. Examiner les extractions, les pages sources et les correspondances candidates.
+4. Confirmer, corriger ou laisser en suspens les décisions ambiguës.
+5. Exporter les annotations et le rapport; consulter la couverture avant d’interpréter les résultats.
 
-CRAFT détecte le texte ; le CRNN Latin d’EasyOCR reconnaît les caractères. Ce sont des modèles OCR génériques, pas un modèle entraîné à certifier la conformité d’une structure. Le texte PDF natif est privilégié. Les grandes pages sont découpées en tuiles. CUDA est utilisé si disponible, avec réduction du lot en cas de mémoire insuffisante.
+Les statuts automatiques décrivent les champs lisibles qui ont pu être comparés. Une absence d’extraction ou de correspondance ne prouve pas qu’un élément est absent du dessin. Les décisions « manquant » et « ajouté » exigent une vérification humaine explicite du périmètre et des sources.
 
-L’identité, le niveau et la famille sont rapprochés avant les valeurs d’armature. Les identités spatiales restent heuristiques. `non_conforme` désigne un écart candidat ; `conforme` un accord partiel sur les champs comparables ; `a_verifier` une abstention. Les éléments non appariés ne sont pas automatiquement déclarés manquants ou ajoutés. Les groupes de fabrication et lectures incertaines restent à réviser. La couverture est indiquée explicitement.
+## Traitement local et aide vision facultative
 
-Les coordonnées sont les centres des annotations en points PDF, origine supérieure gauche, dans la page affichée après rotation. Une transformation inverse permet de surligner les sources sans modifier les originaux.
+Le serveur écoute uniquement sur l’adresse locale (`127.0.0.1`) et ne fournit pas d’authentification. Ne pas l’exposer sur Internet. L’OCR, les imports et les exports s’exécutent localement; aucun document n’est envoyé à un service externe.
 
-Aucun score officiel ni précision de conformité n’est revendiqué. Les mesures OCR sur de petits extraits ne prouvent pas la qualité de l’appariement. Le benchmark local conserve les échecs et distingue validation, confirmation, CPU et GPU.
+Une aide expérimentale peut interroger un modèle vision local via Ollama. Elle est désactivée par défaut, facultative et ne décide ni de l’identité finale ni du statut de conformité. Pour l’activer, installer Ollama séparément puis télécharger un modèle vision local, par exemple :
 
-## Développement et contrôles
+```powershell
+ollama pull qwen3.5:4b
+```
+
+La mémoire nécessaire dépend du modèle, du runtime et des images traitées. Qwen3.5 est un modèle généraliste, pas un modèle spécialisé ou validé pour les plans d’armatures. Toute suggestion doit être contrôlée visuellement. Ollama n’est pas requis pour utiliser Concorde.
+
+## Configuration
+
+| Variable | Utilité |
+|---|---|
+| `L2C_DATA` | Dossier local des PDF source |
+| `L2C_STORE` | Imports, caches et runs |
+| `L2C_MODELS` | Poids locaux EasyOCR |
+| `CONCORDE_PYTHON` | Interpréteur Python utilisé par les lanceurs |
+| `CONCORDE_PORT` | Port local du serveur (8766 par défaut) |
+| `CONCORDE_OLLAMA_URL` | URL locale Ollama (127.0.0.1 par défaut) |
+| `CONCORDE_VLM_MODEL` | Modèle vision local configuré |
+
+Un fichier local `local-settings.ps1` peut définir ces variables; il est ignoré par Git.
+
+## Développement et tests
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install pytest httpx
 .\.venv\Scripts\python.exe -m pytest tests -q
 ```
 
-Les tests utilisent uniquement des textes et PDF synthétiques. Le script `scripts/l2c_benchmark_worker.py` attend un manifeste local non fourni ; il ne contient aucun résultat client. Le socket Python est bloqué durant ses inférences, mais ce contrôle n’est pas un pare-feu système.
-
-## Dépendances
-
-Versions : `l2c_app/requirements.txt` et `install-concorde.ps1`. EasyOCR est Apache-2.0 ; PyMuPDF est AGPL-3.0 ou commercial ; PyTorch utilise sa licence BSD. Vérifier les obligations des dépendances et des poids avant redistribution. Aucun poids tiers n’est publié ici. Le code a été développé avec l’assistance de Codex.
-
-## Assistance d’appariement expérimentale
-
-Dans **Moteur & réglages**, activer « Afficher les candidats expliqués pendant la révision » pour inspecter les correspondances possibles. Cette option est désactivée par défaut et ne modifie aucun statut automatique. Les indices portent sur la famille, le repère, le niveau, le rôle et la position haut/bas. Les valeurs d’armature ne servent pas au classement des candidats. Les niveaux absents, axes heuristiques et candidats multiples sont signalés.
-
-Deux annotations identiques dans des PDF différents ne prouvent pas un doublon de document : les pages peuvent différer ailleurs ou représenter des révisions. L’assistant conserve toutes les sources. Les écarts affichés pour un candidat sont conditionnels à la confirmation de l’identité. Ils ne constituent pas une nouvelle alerte automatique.
-
-### Reproduire les contrôles
+Les tests utilisent des entrées synthétiques et ne nécessitent pas les plans du défi. Pour vérifier le flux local complet avec les poids installés, le script crée des PDF temporaires et passe par les routes d’import, les moteurs OCR, les exports et la reprise d’un run :
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests -q
 .\.venv\Scripts\python.exe scripts/check_local_flow.py --models artifacts/l2c/models --output data/checks/flow-001.json
 ```
 
-Le second contrôle crée des PDF fictifs dans un dossier temporaire, passe par les endpoints d’import, lance les deux OCR locaux, valide les coordonnées et exports, enregistre une révision et vérifie la récupération au démarrage. Choisir un nouveau nom de sortie à chaque exécution pour conserver les échecs. Les poids doivent être installés avant ce contrôle.
+Les scripts d’audit, benchmark et adjudication sont décrits dans `docs/`. Les fichiers de référence et les étiquettes d’ingénieur doivent rester indépendants des données utilisées pour développer le système.
 
-`scripts/benchmark_pairing.py --run <run.json> --out <nouveau-dossier-local>` audite les annotations conservées sans refaire l’OCR. Ajouter plusieurs `--run` pour plusieurs projets. `--labels <tableur-local.xlsx>` accepte un tableau de référence à quatre colonnes (feuillet, localisation, plan, atelier) ; cette option requiert `openpyxl`. La couverture en candidats n’est pas la précision de l’appariement. L’absence d’annotations d’atelier dans un profil natif doit être signalée avant d’interpréter les résultats.
+## Architecture
 
-Les principes du barème, critères mesurables et limites sont détaillés dans `docs/MATCHING-VALIDATION.md`. Une vérité terrain exhaustive, revue par un ingénieur, reste nécessaire pour mesurer les faux appariements et le rappel de conformité. Les annotations examinées pendant le développement ne deviennent pas un jeu indépendant en changeant leur nom.
+- `l2c_app/` : service FastAPI, extraction, OCR, appariement, révision, interface et rapports.
+- `scripts/` : installation des modèles, contrôles de flux, audits et outils d’évaluation.
+- `tests/` : tests unitaires et d’intégration sur données synthétiques.
+- `notebooks/l2c_concorde.ipynb` : démonstration et inspection de runs locaux.
+- `docs/` : protocoles, sémantique des rapports et limites de validation.
 
-## Compléter et auditer les livrables
+## Limites et interprétation
 
-Lancer Concorde avec `start-concorde.ps1`, puis dans un autre terminal afficher les projets détectés et démarrer les runs complets un par un via l’API loopback. Un run complet peut prendre longtemps; les fichiers restent sous `data/l2c/app/runs/`.
+EasyOCR et RapidOCR sont des moteurs généralistes; ils ne sont pas entraînés pour certifier des détails de structure. Les identités spatiales et appariements restent heuristiques. Une validation du schéma, des coordonnées ou de la couverture confirme la structure et le traitement, pas l’exactitude sémantique. Aucune précision, aucun rappel global et aucun score officiel ne sont revendiqués sans références exhaustives annotées indépendamment par des ingénieurs.
 
-```powershell
-if (Test-Path .\local-settings.ps1) { . .\local-settings.ps1 }
-.\.venv\Scripts\python.exe scripts/run_full_local.py --list
-.\.venv\Scripts\python.exe scripts/run_full_local.py --project CLP --project EspCa3B --project LIGREP --project WP2 --skip-completed
-.\.venv\Scripts\python.exe scripts/audit_deliverables.py
-```
+PyMuPDF est distribué sous AGPL-3.0 ou licence commerciale; EasyOCR est sous Apache-2.0. Vérifier les licences applicables aux dépendances et aux poids avant toute redistribution. Aucun poids tiers ni document de projet n’est inclus dans ce dépôt.
 
-L’audit écrit son état dans `data/l2c/app/audit-deliverables/` et retourne un code non nul si un projet n’a pas d’exports complets ou si le JSON ne respecte pas le modèle courant. Voir `docs/DELIVERABLE-AUDIT.md`. Il mesure la couverture des pages du catalogue et la présence des sorties, pas leur exactitude sémantique.
+## Documentation
 
-Pour préparer des paires à faire vérifier par un ingénieur, suivre `docs/ADJUDICATION-WORKFLOW.md`. Le paquet et les labels sont générés hors du dépôt. Les suggestions de Concorde ne constituent jamais une vérité terrain.
-
-Les termes et compteurs employés dans le PDF sont définis dans `docs/REPORT-SEMANTICS.md`. Les écarts restent des propositions à confirmer; les catégories « manquant » et « ajouté » ne sont pas inférées depuis une absence d’appariement.
-
-Le plan de phases et les portes de sortie sont dans `PLAN-L2C-EXECUTION.md`.
+- [Validation de l’appariement](docs/MATCHING-VALIDATION.md)
+- [Audit des livrables](docs/DELIVERABLE-AUDIT.md)
+- [Workflow d’adjudication](docs/ADJUDICATION-WORKFLOW.md)
+- [Sémantique des rapports](docs/REPORT-SEMANTICS.md)

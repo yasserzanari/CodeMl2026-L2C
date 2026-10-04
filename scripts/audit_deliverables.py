@@ -95,6 +95,8 @@ def catalog_inventory(raw_root: Path, store_root: Path) -> tuple[dict[str, dict[
         if len(relative.parts) < 2:
             continue
         project_id = relative.parts[0]
+        # Application file identities are relative to the project, not RAW.
+        project_relative = Path(*relative.parts[1:]).as_posix()
         # Catalog cache keys are absolute paths; never expose those paths in the report.
         cached = cache.get(str(pdf.resolve()))
         if not isinstance(cached, dict):
@@ -134,10 +136,10 @@ def catalog_inventory(raw_root: Path, store_root: Path) -> tuple[dict[str, dict[
         role = "atelier" if any(part.upper() in ("DA", "ATELIER") for part in relative.parts[:-1]) else "plan"
         project[f"{role}_pages"] += pages
         project["_expected_page_keys"].update(
-            (relative.as_posix(), page_number) for page_number in range(1, pages + 1)
+            (project_relative, page_number) for page_number in range(1, pages + 1)
         )
-        project["_expected_file_hashes"][relative.as_posix()] = digest
-        project["source_manifest"].append((relative.as_posix(), digest, pages, role))
+        project["_expected_file_hashes"][project_relative] = digest
+        project["source_manifest"].append((project_relative, digest, pages, role))
 
     for project_id, project in inventory.items():
         manifest = "\n".join("\t".join(map(str, row)) for row in sorted(project["source_manifest"]))
@@ -206,7 +208,7 @@ def page_coverage(run: dict[str, Any], expected: dict[str, Any]) -> dict[str, An
         "page_skipped": skipped,
         "page_source_hash_missing": source_hash_missing,
         "page_source_hash_mismatch": source_hash_mismatch,
-        "source_hashes_match_catalog": bool(expected.get("_expected_file_hashes"))
+        "source_hashes_match_catalog": bool(pages) and bool(expected.get("_expected_file_hashes"))
         and source_hash_missing == 0 and source_hash_mismatch == 0,
         "malformed_page_rows": malformed,
         "source_rows": source_counts,
@@ -367,12 +369,12 @@ def main() -> int:
                         help="Workspace root (default: parent of scripts/).")
     parser.add_argument("--raw-root", type=Path, help="Source catalog root; default: <workspace>/data/l2c/raw.")
     parser.add_argument("--store-root", type=Path, help="Concorde store; default: <workspace>/data/l2c/app.")
-    parser.add_argument("--output", type=Path, help="Ignored local output folder; default: <store-root>/audit-deliverables.")
+    parser.add_argument("--output", type=Path, help="Ignored local output folder; default: <workspace>/data/l2c/app/audit-deliverables.")
     args = parser.parse_args()
     workspace = args.workspace.resolve()
-    raw_root = (args.raw_root or workspace / "data" / "l2c" / "raw").resolve()
-    store_root = (args.store_root or workspace / "data" / "l2c" / "app").resolve()
-    output_root = (args.output or store_root / "audit-deliverables").resolve()
+    raw_root = (args.raw_root or Path(os.environ.get("L2C_DATA", workspace / "data" / "l2c" / "raw"))).resolve()
+    store_root = (args.store_root or Path(os.environ.get("L2C_STORE", workspace / "data" / "l2c" / "app"))).resolve()
+    output_root = (args.output or workspace / "data" / "l2c" / "app" / "audit-deliverables").resolve()
     if output_root == workspace or workspace not in output_root.parents:
         parser.error("--output doit se trouver dans l’espace de travail local.")
     ignore_state = ignored_by_git(output_root, workspace)

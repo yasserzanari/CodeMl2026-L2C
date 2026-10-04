@@ -4,15 +4,15 @@ No OCR rerun, no reference values passed to the candidate retriever.
 import argparse,json,sys,hashlib,collections
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent.parent))
-from l2c_app.pairing import candidates,element_key
+from l2c_app.pairing import candidates,element_key,candidate_index
 from l2c_app.matching import reconcile
 from l2c_app.extraction import parse_armatures
 
 def audit(run):
-    records=run['records'];baseline=reconcile(records)
+    records=run['records'];baseline=reconcile(records);index=candidate_index(records)
     plans=[r for r in records if r['information']['source']=='plan'];counts=collections.Counter()
     for p in plans:
-        c=candidates(p,records)
+        c=candidates(p,records,index=index)
         counts['plans']+=1;counts['with_candidates']+=bool(c);counts['multiple_candidates']+=len(c)>1
         counts['unresolved_identity']+=not p.get('identity_resolved',False)
         counts['missing_level']+=not p.get('level')

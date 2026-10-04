@@ -18,3 +18,10 @@ protobuf==6.33.6
 packaging==26.3
 sympy==1.14.0
 coloredlogs==15.0.1
+
+# Explicit dependencies omitted by the RapidOCR --no-deps installation.
+six==1.17.0
+tqdm==4.67.1
+# The OCR packages declare different OpenCV distributions sharing cv2; keep versions aligned.
+opencv-python==5.0.0.93
+opencv-python-headless==5.0.0.93

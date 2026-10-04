@@ -5,6 +5,7 @@ import time
 import numpy as np
 import torch
 from .config import MODELS
+from .ocr_duplicates import DuplicateIndex
 
 _reader = None
 _device = None
@@ -23,20 +24,30 @@ def hardware():
 
 def reader_for(device='auto'):
     global _reader, _device
-    desired = 'cuda' if device != 'cpu' and torch.cuda.is_available() else 'cpu'
-    if device == 'cuda' and desired != 'cuda':
-        raise RuntimeError('CUDA indisponible. Choisissez Auto ou CPU dans les réglages.')
+    cuda_available = torch.cuda.is_available()
+    if device == 'cuda' and not cuda_available:
+        raise RuntimeError('CUDA indisponible. Aucune inférence OCR CPU ne sera lancée.')
+    if device not in ('auto', 'cuda', 'cpu'):
+        raise ValueError('Périphérique OCR inconnu : choisir auto, cuda ou cpu.')
+    desired = 'cuda' if device in ('auto', 'cuda') and cuda_available else 'cpu'
     with LOCK:
         if _reader is None or _device != desired:
             import easyocr
             _reader = None
-            if torch.cuda.is_available():
+            if desired == 'cuda':
                 torch.cuda.empty_cache()
                 torch.backends.cudnn.benchmark = True
                 torch.set_float32_matmul_precision('high')
             torch.set_num_threads(min(8, max(1, __import__('os').cpu_count() or 4)))
-            _reader = easyocr.Reader(['fr', 'en'], gpu=desired if desired=='cuda' else False,
+            reader = easyocr.Reader(['fr', 'en'], gpu=desired == 'cuda',
                  model_storage_directory=str(MODELS), download_enabled=False, verbose=False)
+            for name in ('detector','recognizer'):
+                network=getattr(reader,name,None)
+                try: device=next(network.parameters()).device.type
+                except (AttributeError,StopIteration,TypeError): device='unknown'
+                if device != desired:
+                    raise RuntimeError(f'EasyOCR {name} n’est pas chargé sur {desired}.')
+            _reader = reader
             _device = desired
         return _reader
 
@@ -61,6 +72,7 @@ def recognize(image, config):
             if positions[-1]!=length-tile:positions.append(length-tile)
             return positions
         values=[];tiles=0
+        duplicates=DuplicateIndex()
         for top in starts(height):
             for left in starts(width):
                 crop=image.crop((left,top,min(left+tile,width),min(top+tile,height)))
@@ -68,14 +80,16 @@ def recognize(image, config):
                     found=reader.readtext(np.asarray(crop), **kwargs)
                 except torch.cuda.OutOfMemoryError:
                     torch.cuda.empty_cache()
-                    kwargs.update(batch_size=max(1,batch//4),canvas_size=min(1920,config['canvas_size']))
-                    found=reader.readtext(np.asarray(crop), **kwargs)
+                    raise RuntimeError('Mémoire CUDA insuffisante pour EasyOCR; réduisez la résolution ou la taille du lot.')
                 tiles+=1
                 for polygon,text,confidence in found:
                     polygon=[[float(x)+left,float(y)+top] for x,y in polygon]
                     cx=sum(x for x,y in polygon)/4;cy=sum(y for x,y in polygon)/4
-                    duplicate=next((i for i,(poly,txt,conf) in enumerate(values) if txt==text and
-                                    abs(sum(x for x,y in poly)/4-cx)<20 and abs(sum(y for x,y in poly)/4-cy)<20),None)
-                    if duplicate is None:values.append((polygon,text,float(confidence)))
-                    elif confidence>values[duplicate][2]:values[duplicate]=(polygon,text,float(confidence))
+                    duplicate=duplicates.find(text,cx,cy)
+                    if duplicate is None:
+                        duplicates.update(len(values),text,cx,cy)
+                        values.append((polygon,text,float(confidence)))
+                    elif confidence>values[duplicate][2]:
+                        duplicates.update(duplicate,text,cx,cy)
+                        values[duplicate]=(polygon,text,float(confidence))
     return values, {'device': _device, 'seconds': round(time.perf_counter()-start, 3), 'batch_size': kwargs['batch_size'],'tiles':tiles}

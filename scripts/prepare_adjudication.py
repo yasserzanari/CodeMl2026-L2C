@@ -35,6 +35,7 @@ CSV_FIELDS = [
     "atelier_x", "atelier_y", "atelier_box_json", "atelier_raw",
     "human_outcome", "confirmed_discrepancy_fields", "adjudicator", "reviewed_at",
     "group_id", "split", "notes",
+    "identity_review_outcome", "identity_review_adjudicator", "identity_review_at", "identity_review_note",
 ]
 
 
@@ -164,7 +165,7 @@ def load_inputs(run_paths: list[Path], source_root: Path | None) -> tuple[list[d
 def build_suggestions(runs: list[dict], record_run: dict[str, dict], max_candidates: int) -> list[dict]:
     # Import the same deterministic, conservative retrieval function used in the app.
     sys.path.insert(0, str(REPO_ROOT))
-    from l2c_app.pairing import candidates
+    from l2c_app.pairing import candidates,candidate_index
 
     suggestions: dict[tuple[str, str], dict] = {}
 
@@ -190,10 +191,11 @@ def build_suggestions(runs: list[dict], record_run: dict[str, dict], max_candida
         run = item["data"]
         project_id = str(run["project_id"])
         records = run["records"]
+        index = candidate_index(records)
         for plan in records:
             if plan["information"]["source"] != "plan":
                 continue
-            for candidate in candidates(plan, records, limit=max_candidates):
+            for candidate in candidates(plan, records, limit=max_candidates, index=index):
                 add(str(plan["information"]["id"]), str(candidate["record_id"]),
                     "retrieval_candidate", candidate.get("evidence"), candidate.get("warnings"))
         # Preserve automatic groupings as inspectable suggestions, including cases the
@@ -268,6 +270,27 @@ def prepare(args: argparse.Namespace) -> None:
     source_root = args.source_root.expanduser().resolve() if args.source_root else None
     runs, records, record_run = load_inputs(args.run, source_root)
     suggestions = build_suggestions(runs, record_run, args.max_candidates)
+    identity_reviews = {}
+    for path in getattr(args, 'pair_reviews', None) or []:
+        data = json.loads(path.read_text(encoding='utf-8'))
+        source = next((item for item in runs if item['data']['id'] == data.get('run_id')), None)
+        if source is None:
+            raise ValueError(f'{path}: supply the matching source run with --run')
+        for row in data.get('items', []):
+            left, right = row['plan_id'], row['atelier_id']
+            if row.get('source_run_sha256') != source['lineage']['run_json_sha256']:
+                raise ValueError(f'{path}: source run changed since identity review; re-review the pair')
+            if left not in records or right not in records:
+                raise ValueError(f'{path}: unknown annotation')
+            if any(record_run[ident]['lineage']['run_id'] != data['run_id'] for ident in (left,right)):
+                raise ValueError(f'{path}: annotation belongs to another run')
+            if records[left]['information']['source'] != 'plan' or records[right]['information']['source'] != 'atelier':
+                raise ValueError(f'{path}: invalid annotation source')
+            identity_reviews[(left, right)] = row
+            if not any(s['plan_record_id']==left and s['atelier_record_id']==right for s in suggestions):
+                suggestions.append({'pair_id':pair_id(source['data']['project_id'],left,right),
+                                    'plan_record_id':left,'atelier_record_id':right,'sources':['human_identity_review'],
+                                    'evidence':[],'warnings':[],'automatic_results':[]})
     packet = {
         "schema_version": "l2c-adjudication-packet-v1",
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -276,6 +299,7 @@ def prepare(args: argparse.Namespace) -> None:
         "source_root": str(source_root) if source_root else None,
         "records": list(records.values()),
         "machine_suggestions": suggestions,
+        "identity_reviews": list(identity_reviews.values()),
         "limits": [
             "Only annotations present in the supplied run are catalogued; missed source elements are absent.",
             "Candidate pairs and automatic verdicts are suggestions, never human labels.",
@@ -288,7 +312,13 @@ def prepare(args: argparse.Namespace) -> None:
         writer = csv.DictWriter(stream, fieldnames=CSV_FIELDS, extrasaction="ignore")
         writer.writeheader()
         for suggestion in suggestions:
-            writer.writerow(csv_row(suggestion, records))
+            row = csv_row(suggestion, records)
+            identity = identity_reviews.get((suggestion['plan_record_id'],suggestion['atelier_record_id']))
+            if identity:
+                # Identity validation alone does not establish agreement on reinforcement.
+                for suffix, key in [('outcome','outcome'),('adjudicator','adjudicator'),('at','at'),('note','note')]:
+                    row['identity_review_'+suffix] = identity.get(key, '')
+            writer.writerow(row)
     hashed_sources = {(r["source_file"], r["source_sha256"]) for r in records.values()
                       if r["source_sha256"]}
     manifest = {"packet": "review-packet.json", "template": "review-template.csv",
@@ -405,6 +435,7 @@ def main() -> None:
     prep.add_argument("--run", type=Path, action="append", required=True, help="Concorde run JSON; repeat for separate projects")
     prep.add_argument("--out", type=Path, required=True, help="New output directory outside the repository")
     prep.add_argument("--source-root", type=Path, help="Optional local PDF root; hashes matched source files, copies nothing")
+    prep.add_argument("--pair-reviews", type=Path, action="append", help="Optional identity reviews exported from the app; does not prefill discrepancy labels")
     prep.add_argument("--max-candidates", type=int, default=8)
     prep.set_defaults(func=prepare)
     check = sub.add_parser("validate", help="Validate a filled CSV without changing the original packet or labels")

@@ -52,6 +52,34 @@ def test_unmatched_is_not_missing():
     assert reconcile([record('plan')])[0]['status']=='a_verifier'
 
 
+def test_identical_copies_across_shop_documents_can_reach_comparison():
+    plan=record('plan','4-35M','N2')
+    plan['information']['element']='K-6';plan['role']='vert';plan['doc_id']='plan-file'
+    first=record('atelier','4-25M','N2')
+    first['information']['element']='K-6';first['role']='vert';first['doc_id']='shop-part-2'
+    second=deepcopy(first);second['information']['id']='atelier-copy';second['doc_id']='shop-part-3'
+    result=reconcile([plan,first,second])[0]
+    assert result['status']=='non_conforme'
+    assert result['differences']==[{'field':'diametre','plan':'35M','atelier':'25M'}]
+    assert result['atelier_ids']==['atelier','atelier-copy']
+    assert 'copies atelier identiques' in result['reason']
+
+
+def test_conflicting_duplicate_shop_documents_remain_unresolved():
+    plan=record('plan','4-35M','N2');plan['information']['element']='K-6';plan['role']='vert'
+    first=record('atelier','4-25M','N2');first['information']['element']='K-6';first['role']='vert';first['doc_id']='part-2'
+    second=record('atelier','4-30M','N2');second['information']['id']='atelier-copy';second['information']['element']='K-6';second['role']='vert';second['doc_id']='part-3'
+    result=reconcile([plan,first,second])[0]
+    assert result['status']=='a_verifier' and not result['differences']
+
+
+def test_repeat_in_one_shop_document_is_not_collapsed():
+    plan=record('plan','4-35M','N2');plan['information']['element']='K-6';plan['role']='vert'
+    first=record('atelier','4-25M','N2');first['information']['element']='K-6';first['role']='vert';first['doc_id']='part-2'
+    second=record('atelier','4-25M','N2');second['information']['id']='atelier-copy';second['information']['element']='K-6';second['role']='vert';second['doc_id']='part-2'
+    assert reconcile([plan,first,second])[0]['status']=='a_verifier'
+
+
 @pytest.mark.parametrize('angle',[0,90,180,270])
 def test_pdf_rotation_geometry(angle):
     with fitz.open() as doc:

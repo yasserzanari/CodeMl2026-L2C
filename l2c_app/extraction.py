@@ -79,6 +79,18 @@ def native_lines(page):
 def read_page(path, page_index, digest, config, allow_ocr=True, force_ocr=False):
     signature = {k:config[k] for k in ['dpi','canvas_size','ocr_confidence','ocr_rotations']}
     signature['ocr_engine']=config.get('ocr_engine','easyocr')
+    # Reuse existing detailed page readings before attempting a faster new reading.
+    # Cached coordinates are already PDF points. Never let detailed mode reuse page-mode OCR.
+    if config.get('ocr_strategy')=='page' and allow_ocr:
+        for dpi,rotations in ((144,True),(96,True),(144,False),(96,False)):
+            previous=signature|{'dpi':dpi,'ocr_rotations':rotations}
+            previous_key=hashlib.sha256((VERSION+digest+str(page_index)+json.dumps(previous,sort_keys=True)+str(force_ocr)).encode()).hexdigest()
+            previous_path=STORE/'cache'/f'{previous_key}.json'
+            if previous_path.exists():
+                result=json.loads(previous_path.read_text('utf-8'))
+                if result.get('method') in ('pdf','ocr'):
+                    return result|{'cached':True,'reused_cache':True,'ocr_strategy':'tiled'}
+    if config.get('ocr_strategy','tiled')!='tiled':signature['ocr_strategy']=config['ocr_strategy']
     key=hashlib.sha256((VERSION+digest+str(page_index)+json.dumps(signature,sort_keys=True)+str(force_ocr)).encode()).hexdigest()
     cache=STORE/'cache'/f'{key}.json'
     if cache.exists():

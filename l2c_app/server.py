@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from . import catalog,service
 from .config import STORE,settings,write_json
-from .models import AnalysisRequest,Settings,Review
+from .models import AnalysisRequest,Settings,Review,PairReview,PairingAssistRequest,PresenceReview
 from .ocr import hardware
 
 @asynccontextmanager
@@ -71,31 +71,68 @@ def cancel(job_id:str):
 @app.get('/api/runs/{run_id}/results')
 def results(run_id:str,q:str=Query('',max_length=200),status:str='',family:str='',sheet:str='',review_state:str='',offset:int=Query(0,ge=0),limit:int=Query(25,ge=1,le=100)):
     run=service.load_run(run_id)
+    def human_decision(row):
+        review=row.get('review') or {}
+        presence=row.get('presence_review') or {}
+        return review.get('decision') or presence.get('outcome')
     rows=[r for r in run['results'] if (not status or r['status']==status) and (not family or r['family']==family)
           and (not sheet or r['sheet']==sheet)
-          and (not review_state or (review_state=='unreviewed' and not r.get('review')) or (r.get('review') or {}).get('decision')==review_state)
+          and (not review_state or (review_state=='unreviewed' and not human_decision(r)) or human_decision(r)==review_state)
           and (not q or q.casefold() in (r['element']+' '+r['sheet']+' '+r['reason']).casefold())]
     return {'id':run_id,'project_name':run['project_name'],'scope':run['scope'],'statistics':run['statistics'],
             'sheets':sorted({r['sheet'] for r in run['results']}),'total':len(rows),'items':rows[offset:offset+limit],'offset':offset,'limit':limit}
 
 @app.get('/api/runs/{run_id}/results/{result_id}')
-def detail(run_id:str,result_id:str):
+def detail(run_id:str,result_id:str,assist:bool=False,plan_id:str=''):
+    from .presence import requirements
     run=service.load_run(run_id)
     row=next((r for r in run['results'] if r['id']==result_id),None)
     if not row:raise KeyError('Observation introuvable')
     ids=set(row['plan_ids']+row['atelier_ids'])
     records=[r for r in run['records'] if r['information']['id'] in ids]
     suggestions=[]
-    if settings().get('pairing_assistance',False):
-        from .pairing import candidates,candidate_differences
-        for plan in [r for r in records if r['information']['source']=='plan'][:4]:
-            for c in candidates(plan,run['records']):
+    if assist or settings().get('pairing_assistance',False):
+        from .pairing import candidates,candidate_differences,candidate_index
+        candidate_lookup=candidate_index(run['records'])
+        plans=[r for r in records if r['information']['source']=='plan' and (not plan_id or r['information']['id']==plan_id)]
+        for plan in plans[:4]:
+            for c in candidates(plan,run['records'],limit=None,index=candidate_lookup):
                 suggestions.append(c|{'plan_id':plan['information']['id'],
                     'differences':candidate_differences(plan,c['record'])})
     index=run['results'].index(row)
-    return row|{'records':records,'pairing_candidates':suggestions,'position':index+1,'total':len(run['results']),
+    return row|{'presence_review_requirements':requirements(run,row),'records':records,'pairing_candidates':suggestions,'pair_reviews':service.pair_reviews(run_id)['items'],'position':index+1,'total':len(run['results']),
                 'previous':run['results'][index-1]['id'] if index else None,
                 'next':run['results'][index+1]['id'] if index+1<len(run['results']) else None}
+
+@app.get('/api/runs/{run_id}/pairing')
+def pairing_queue(run_id:str,offset:int=Query(0,ge=0),limit:int=Query(25,ge=1,le=100)):
+    from .pairing import review_queue
+    run=service.load_run(run_id);summary=review_queue(run)
+    items=summary.pop('items')
+    return summary|{'items':items[offset:offset+limit],'total':len(items),'offset':offset,'limit':limit,
+                    'reviewed_pairs':len(service.pair_reviews(run_id)['items']),
+                    'pages_processed':run['statistics']['pages_processed'],'pages_total':len(run['pages'])}
+
+@app.post('/api/runs/{run_id}/pair-reviews')
+def save_pair_review(run_id:str,value:PairReview):
+    try:return service.review_pair(run_id,value.model_dump())
+    except ValueError as exc:raise HTTPException(422,str(exc))
+
+@app.post('/api/runs/{run_id}/pairing-assist')
+def pairing_assist(run_id:str,value:PairingAssistRequest):
+    run=service.load_run(run_id)
+    by_id={r['information']['id']:r for r in run['records']}
+    plan,atelier=by_id.get(value.plan_id),by_id.get(value.atelier_id)
+    if not plan or plan['information']['source']!='plan':raise HTTPException(404,'Annotation de plan introuvable.')
+    if not atelier or atelier['information']['source']!='atelier':raise HTTPException(404,'Annotation atelier introuvable.')
+    from .llm_pairing import PairingModelError,PairingModelUnavailable,analyze_pair
+    try:return analyze_pair(plan,atelier)
+    except PairingModelUnavailable as exc:raise HTTPException(503,str(exc))
+    except PairingModelError as exc:raise HTTPException(502,str(exc))
+
+@app.get('/api/runs/{run_id}/pair-reviews')
+def export_pair_reviews(run_id:str):
+    return JSONResponse(service.pair_reviews(run_id),headers={'Content-Disposition':'attachment; filename="correspondances-revisees.json"'})
 
 @app.get('/api/runs/{run_id}/reports')
 def report_index(run_id:str):
@@ -138,6 +175,11 @@ def document_meta(doc_id:str,page:int=Query(1,ge=1)):
 
 @app.post('/api/runs/{run_id}/results/{result_id}/review')
 def review(run_id:str,result_id:str,value:Review):return service.review(run_id,result_id,value.model_dump())
+
+@app.post('/api/runs/{run_id}/results/{result_id}/presence-review')
+def presence_review(run_id:str,result_id:str,value:PresenceReview):
+    try:return service.review_presence(run_id,result_id,value.model_dump())
+    except ValueError as exc:raise HTTPException(422,str(exc))
 
 @app.get('/api/runs/{run_id}/download/{filename}')
 def download(run_id:str,filename:str):

@@ -5,6 +5,22 @@
 /runs/
 /cache/
 /research/
+# Local challenge evidence and operator notes may contain project identifiers,
+# private paths, run IDs, or derived measurements. Keep them on the workstation.
+/docs/ANALYSE-UI-AMELIORATIONS-2026-10-03.md
+/docs/AUDIT-FINAL-2026-10-04.md
+/docs/BONUS-TOOLS.md
+/docs/CLP-ADJUDICATION-GRID.md
+/docs/DEMO-ET-REMISE.md
+/docs/EXIGENCES-CONFORMITE-2026-10-03.md
+/docs/FAST-OCR.md
+/docs/FULL-LOCAL-RUNS.md
+/docs/GPU-VERIFICATION-2026-10-03.md
+/docs/PAIRING-INTEGRATION.md
+/docs/QA-COMPLEMENTAIRE-2026-10-03.md
+/docs/QA-RESULTATS-2026-10-03.md
+/docs/VALIDATION-STATUS.md
+/scripts/build_clp_reference_grid.py
 *.pdf
 *.png
 *.jpg

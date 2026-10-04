@@ -5,6 +5,16 @@ Scores are evidence counts, not calibrated probabilities. Unknown levels remain 
 """
 import re
 import unicodedata
+from collections import defaultdict
+
+def candidate_index(records):
+    """Index identities only; reinforcement values never affect retrieval."""
+    index=defaultdict(list)
+    for record in records:
+        info=record['information']
+        if info['source']=='atelier' and record.get('identity_resolved'):
+            index[(info['type_element'],element_key(info['element']))].append(record)
+    return index
 
 def element_key(value):
     text=unicodedata.normalize('NFKC',value).strip().upper()
@@ -18,11 +28,12 @@ def level_key(value):
     if match:return 'N'+str(int(match.group(1)))
     return 'RDC' if text in ('RDC','REZ-DE-CHAUSSÉE','REZ-DE-CHAUSSEE') else text
 
-def candidates(plan,records,limit=8):
+def candidates(plan,records,limit=8,index=None):
     info=plan['information']
     if info['source']!='plan' or not plan.get('identity_resolved') or info['type_element']=='inconnu':return []
     key=element_key(info['element']); result=[]
-    for other in records:
+    pool=index.get((info['type_element'],key),[]) if index is not None else records
+    for other in pool:
         item=other['information']
         if item['source']!='atelier' or not other.get('identity_resolved'):continue
         if item['type_element']!=info['type_element'] or element_key(item['element'])!=key:continue
@@ -43,16 +54,30 @@ def candidates(plan,records,limit=8):
     result.sort(key=lambda c:(len(c['warnings']),-len(c['evidence']),c['source_file'],c['page'],c['record_id']))
     if len(result)>1:
         for row in result:row['warnings'].append('Plusieurs candidats : aucune sélection automatique')
-    return result[:limit]
+    return result if limit is None else result[:limit]
+
+def review_queue(run):
+    """Coverage and navigation for human review, never accuracy or new verdicts."""
+    records=run['records'];index=candidate_index(records)
+    observations={pid:row['id'] for row in run['results'] for pid in row['plan_ids']}
+    items=[];plans=0;missing_level=0;unresolved=0
+    for plan in records:
+        info=plan['information']
+        if info['source']!='plan':continue
+        plans+=1;missing_level+=not bool(plan.get('level'));unresolved+=not bool(plan.get('identity_resolved'))
+        found=candidates(plan,records,limit=None,index=index)
+        if not found:continue
+        items.append({'plan_id':info['id'],'result_id':observations.get(info['id']),
+                      'element':info['element'],'sheet':info['feuillet'],'family':info['type_element'],
+                      'page':info['page'],'raw':plan.get('raw',''),
+                      'context':' · '.join(str(plan.get(k,'')) for k in ('level','role','phase') if plan.get(k)),
+                      'candidate_count':len(found)})
+    items.sort(key=lambda row:(row['candidate_count']!=1,row['sheet'],row['element'],row['plan_id']))
+    return {'plans':plans,'with_candidates':len(items),'without_candidates':plans-len(items),
+            'multiple_candidates':sum(row['candidate_count']>1 for row in items),
+            'missing_level':missing_level,'unresolved_identity':unresolved,'items':items}
 
 def candidate_differences(plan,atelier):
     """Comparison is explicitly downstream of identity retrieval; no engineering tolerance inferred."""
-    a,b=plan['information']['armature'],atelier['information']['armature']
-    if len(a)!=1 or len(b)!=1:return []
-    result=[]
-    for field in ('diametre','quantite','espacement_mm','longueur_mm'):
-        x,y=a[0].get(field),b[0].get(field)
-        if x is None or y is None:continue
-        same=abs(x-y)<1e-6 if isinstance(x,(int,float)) and isinstance(y,(int,float)) else x==y
-        if not same:result.append({'field':field,'plan':x,'atelier':y})
-    return result
+    from .matching import compare_armatures
+    return compare_armatures(plan,atelier)[0]

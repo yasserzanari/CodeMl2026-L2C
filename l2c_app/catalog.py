@@ -55,7 +55,7 @@ def document(identifier):
     with CATALOG_LOCK: return _docs.get(identifier)
 def public_document(doc): return {k:v for k,v in doc.items() if k!='path'}
 
-def render(doc_id,page_number,box=None,scale=1.0,full=False):
+def render(doc_id,page_number,box=None,scale=1.0,full=False,highlight=True):
     doc=document(doc_id)
     if not doc: raise KeyError('Document introuvable')
     with PDF_LOCK, fitz.open(doc['path']) as pdf:
@@ -66,10 +66,11 @@ def render(doc_id,page_number,box=None,scale=1.0,full=False):
             rect=fitz.Rect(box)
             clip=page.rect if full else fitz.Rect(rect.x0-65,rect.y0-55,rect.x1+65,rect.y1+55)&page.rect
             if clip.is_empty:raise ValueError('Zone hors de la page.')
-            # In-memory overlay only. The confidential source PDF is never overwritten.
-            annotation=page.add_rect_annot(rect*page.derotation_matrix)
-            annotation.set_colors(stroke=(.14,.39,.86));annotation.set_border(width=1)
-            annotation.update()
+            if highlight:
+                # In-memory overlay only. The confidential source PDF is never overwritten.
+                annotation=page.add_rect_annot(rect*page.derotation_matrix)
+                annotation.set_colors(stroke=(.14,.39,.86));annotation.set_border(width=1)
+                annotation.update()
         # Render in the visible rotated coordinate system used by extracted bounding boxes.
         pix=page.get_pixmap(matrix=fitz.Matrix(scale,scale),clip=clip,alpha=False)
         return pix.tobytes('png')

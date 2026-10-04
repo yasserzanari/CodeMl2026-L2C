@@ -10,6 +10,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from . import catalog
+from .presence import LABELS as PRESENCE_LABELS,counts as presence_counts
 
 LABELS={'conforme':'Accord partiel','non_conforme':'Écart proposé','a_verifier':'À vérifier'}
 
@@ -26,8 +27,8 @@ def groups(run):
 def index(run):
     return {'run_id':run['id'],'project_name':run['project_name'],'created_at':run['created_at'],
             'statistics':run['statistics'],'sheets':[{'id':ident,'name':s,'total':len(rows),
-            'counts':dict(Counter(r['status'] for r in rows)),
-            'reviewed':sum(bool(r.get('review')) for r in rows)} for ident,(s,rows) in groups(run).items()]}
+            'counts':dict(Counter(r['status'] for r in rows)), 'presence_counts':presence_counts(rows),
+            'reviewed':sum(bool(r.get('review') or r.get('presence_review')) for r in rows)} for ident,(s,rows) in groups(run).items()]}
 
 def make_pdf(run,sheet_id):
     group=groups(run).get(sheet_id)
@@ -48,11 +49,17 @@ def _render(payload):
            p(data['project']+' · '+data['created']),p('Aide à la révision. Les accords partiels portent uniquement sur les valeurs lues. Les décisions humaines restent séparées des propositions automatiques.'),Spacer(1,12)]
     counts=Counter(r['status'] for r in data['rows'])
     story += [p(' · '.join(f'{v} {LABELS[k].lower()}' for k,v in counts.items())),Spacer(1,12)]
+    human=presence_counts(data['rows'])
+    story += [p('Présence, décisions humaines : '+' · '.join(f'{human.get(k,0)} {v}' for k,v in PRESENCE_LABELS.items())),Spacer(1,8)]
     for row in data['rows']:
         story += [Paragraph(escape(row['element']+' · '+LABELS[row['status']]),styles['Heading3']),p(row['reason'])]
         if row.get('review'):story.append(p('Révision humaine : '+row['review']['decision']+' · '+row['review'].get('note','')+' · '+row['review']['at']))
+        presence=row.get('presence_review') or {}
+        if presence:
+            story.append(p('Présence : '+PRESENCE_LABELS.get(presence['outcome'],'Conclusion retirée / à vérifier')+' · '+presence['adjudicator']+' · '+presence['at']+' · '+presence['note']))
+            story.append(p('Documents vérifiés : '+', '.join(d['name'] for d in presence.get('checked_documents',[]))))
         for diff in row['differences']:story.append(p(f"{diff['field']} : plan {diff['plan']} / atelier {diff['atelier']}"))
-        show_images=row['status']=='non_conforme' or bool(row.get('review'))
+        show_images=row['status']=='non_conforme' or bool(row.get('review')) or bool(presence)
         cells=[]
         for side in ('plan','atelier'):
             content=[p('PLAN DE STRUCTURE' if side=='plan' else 'DESSIN D’ATELIER')]
